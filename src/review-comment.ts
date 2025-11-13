@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { window, workspace, TextEditor } from 'vscode';
 const gitCommitId = require('git-commit-id');
+import { execSync } from 'child_process';
 import { CsvEntry, CsvStructure } from './model';
 import {
   removeLeadingAndTrailingSlash,
@@ -113,6 +114,20 @@ export class ReviewCommentService {
   }
 
   /**
+   * Get the git author name from git config
+   * @return The git user name or empty string if not available
+   */
+  private getGitAuthor(): string {
+    try {
+      const gitAuthor = execSync('git config user.name', { cwd: this.workspaceRoot }).toString().trim();
+      return gitAuthor;
+    } catch (error) {
+      console.log('Could not get git user name', error);
+      return '';
+    }
+  }
+
+  /**
    * Finalize the construction of a comment
    * @param comment The comment to finalize
    * @return The finalized comment
@@ -128,6 +143,16 @@ export class ReviewCommentService {
     } catch (error) {
       copy.sha = '';
       console.log('Not in a git repository. Leaving SHA empty', error);
+    }
+
+    // Set author if not already set
+    if (!copy.author) {
+      copy.author = this.getGitAuthor();
+    }
+
+    // Set default status if not provided
+    if (!copy.status) {
+      copy.status = 'Open';
     }
 
     const startAnker = startLineNumberFromStringDefinition(copy.lines);

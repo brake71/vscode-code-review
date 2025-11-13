@@ -9,17 +9,90 @@
     <title>Add code review note</title>
 
     <style>
-      /* Style inputs */
+      /* CSS Variables */
+      :root {
+        /* Spacing scale */
+        --spacing-xs: 4px;
+        --spacing-sm: 8px;
+        --spacing-md: 12px;
+        --spacing-lg: 16px;
+        --spacing-xl: 24px;
+
+        /* Transition timing - all animations complete within 200ms */
+        --transition-standard: 0.15s ease;
+        --transition-toggle: 0.2s ease;
+        --transition-fast: 0.1s ease;
+
+        /* Theme color mappings */
+        --color-input-bg: var(--vscode-input-background);
+        --color-input-fg: var(--vscode-input-foreground);
+        --color-input-border: var(--vscode-input-border);
+        --color-input-focus-border: var(--vscode-focusBorder);
+        --color-button-primary-bg: var(--vscode-button-background);
+        --color-button-primary-fg: var(--vscode-button-foreground);
+        --color-button-primary-hover: var(--vscode-button-hoverBackground);
+        --color-button-secondary-bg: var(--vscode-button-secondaryBackground);
+        --color-button-secondary-fg: var(--vscode-button-secondaryForeground);
+        --color-button-secondary-hover: var(--vscode-button-secondaryHoverBackground);
+        --color-error: var(--vscode-errorForeground);
+        --color-editor-bg: var(--vscode-editor-background);
+      }
+
+      /* Base form field styling */
       input,
       select,
       textarea {
         width: 100%;
-        padding: 10px;
-        margin: 8px 0;
-        display: inline-block;
-        border: 1px solid #ccc;
-        border-radius: 0px;
+        padding: var(--spacing-sm) var(--spacing-md);
+        margin: 0;
+        display: block;
+        border: 1px solid var(--color-input-border);
+        border-radius: 4px;
         box-sizing: border-box;
+        background-color: var(--color-input-bg);
+        color: var(--color-input-fg);
+        font-size: 13px;
+        font-family: inherit;
+        transition: border-color var(--transition-standard), box-shadow var(--transition-standard),
+          background-color var(--transition-standard), transform var(--transition-standard);
+      }
+
+      /* Input focus states */
+      input:focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        border-color: var(--color-input-focus-border);
+        box-shadow: 0 0 0 1px var(--color-input-focus-border);
+      }
+
+      /* Input hover states */
+      input:hover:not(:focus),
+      select:hover:not(:focus),
+      textarea:hover:not(:focus) {
+        border-color: var(--color-input-focus-border);
+        transform: translateY(-1px);
+      }
+
+      /* Textarea specific styling */
+      textarea {
+        min-height: 80px;
+        resize: vertical;
+        line-height: 1.5;
+        transition: border-color var(--transition-standard), box-shadow var(--transition-standard),
+          background-color var(--transition-standard), transform var(--transition-standard);
+      }
+
+      /* Select dropdown styling */
+      select {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right var(--spacing-sm) center;
+        padding-right: var(--spacing-xl);
+        transition: border-color var(--transition-standard), box-shadow var(--transition-standard),
+          background-color var(--transition-standard), transform var(--transition-standard);
       }
 
       body.vscode-light {
@@ -34,40 +107,99 @@
         padding-top: 20px;
       }
 
+      /* Action Button Styling */
       .action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: var(--spacing-sm) var(--spacing-lg);
         border: none;
-        width: auto;
-        padding: 2px 14px;
-        height: 30px;
-        display: inline-block;
-        font-size: 14px;
-        font-weight: 400;
-        line-height: 1.42857143;
-        text-align: center;
+        border-radius: 4px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
         white-space: nowrap;
-        vertical-align: middle;
         user-select: none;
+        transition: background-color var(--transition-standard), color var(--transition-standard),
+          border-color var(--transition-standard), opacity var(--transition-standard),
+          transform var(--transition-standard), box-shadow var(--transition-standard);
+        min-height: 28px;
       }
+
+      .action-btn .codicon {
+        font-size: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform var(--transition-standard);
+      }
+
+      .action-btn:hover:not(:disabled) .codicon {
+        transform: scale(1.1);
+      }
+
+      .action-btn .btn-text {
+        line-height: 1;
+      }
+
+      /* Primary Button Style */
+      .action-btn.primary {
+        background-color: var(--color-button-primary-bg);
+        color: var(--color-button-primary-fg);
+      }
+
+      .action-btn.primary:hover:not(:disabled) {
+        background-color: var(--color-button-primary-hover);
+      }
+
+      .action-btn.primary:active:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(1px);
+      }
+
+      /* Secondary Button Style */
+      .action-btn.secondary {
+        background-color: var(--color-button-secondary-bg);
+        color: var(--color-button-secondary-fg);
+      }
+
+      .action-btn.secondary:hover:not(:disabled) {
+        background-color: var(--color-button-secondary-hover);
+      }
+
+      .action-btn.secondary:active:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(1px);
+      }
+
+      /* Destructive Button Style */
+      .action-btn.destructive {
+        background-color: transparent;
+        color: var(--color-error);
+        border: 1px solid var(--color-error);
+      }
+
+      .action-btn.destructive:hover:not(:disabled) {
+        background-color: var(--color-error);
+        color: var(--color-editor-bg);
+      }
+
+      .action-btn.destructive:active:not(:disabled) {
+        opacity: 0.9;
+        transform: translateY(1px);
+      }
+
+      /* Disabled Button State */
       .action-btn:disabled {
-        background-color: rgb(239, 240, 241);
+        opacity: 0.5;
         cursor: not-allowed;
-        color: black;
       }
 
-      .primary {
-        color: var(--vscode-button-foreground);
-        background-color: var(--vscode-button-background);
-      }
-      .primary:hover {
-        background-color: var(--vscode-button-hoverBackground);
-      }
-
-      .secondary {
-        color: var(--vscode-button-secondaryForeground);
-        background-color: var(--vscode-button-secondaryBackground);
-      }
-      .secondary:hover {
-        background-color: var(--vscode-button-secondaryHoverBackground);
+      /* Focus State for Accessibility */
+      .action-btn:focus-visible {
+        outline: 2px solid var(--color-input-focus-border);
+        outline-offset: 2px;
       }
 
       /* button group with CTAs */
@@ -76,6 +208,7 @@
         display: flex;
         justify-content: space-between;
         gap: 1em;
+        animation: fadeIn 0.2s ease-in 0.1s both;
       }
       .actions-left {
         display: flex;
@@ -84,148 +217,877 @@
 
       #delete-button {
         visibility: hidden;
+        transition: visibility 0s, opacity var(--transition-standard);
+        opacity: 0;
       }
 
-      /* traffic light */
-      #traffic-light {
-        display: block;
-        background-color: #333;
-        width: 50px;
-        height: 130px;
-        border-radius: 15px;
+      #delete-button[style*='visibility: visible'] {
+        opacity: 1;
       }
-      input.traffic-light-color {
-        appearance: none;
-        position: relative;
-        top: 10px;
-        width: 30px;
-        height: 30px;
-        margin-top: 10px;
-        margin-left: 10px;
-        background-color: grey;
-        vertical-align: middle;
-        border-radius: 100%;
-        display: block;
+
+      /* Priority Selector */
+      .priority-selector {
+        display: flex;
+        gap: var(--spacing-md);
+        margin-top: var(--spacing-sm);
+        flex-wrap: wrap;
+      }
+
+      @keyframes priorityPulse {
+        0%,
+        100% {
+          transform: scale(1.1);
+        }
+        50% {
+          transform: scale(1.15);
+        }
+      }
+
+      .priority-option input[type='radio']:checked ~ .priority-indicator {
+        animation: priorityPulse 0.3s ease-out;
+      }
+
+      .priority-option {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+        border: 1px solid var(--color-input-border);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: border-color var(--transition-standard), background-color var(--transition-standard),
+          transform var(--transition-standard), box-shadow var(--transition-standard);
+        background-color: var(--color-input-bg);
+        flex: 1;
+        min-width: 80px;
+      }
+
+      .priority-option:hover {
+        border-color: var(--color-input-focus-border);
+        background-color: var(--color-input-bg);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .priority-option input[type='radio'] {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+        margin: 0;
+        padding: 0;
+      }
+
+      .priority-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        transition: box-shadow var(--transition-standard), transform var(--transition-standard),
+          background-color var(--transition-standard);
+        flex-shrink: 0;
+      }
+
+      .priority-label {
+        font-size: 13px;
+        font-weight: 400;
         user-select: none;
+        transition: color var(--transition-standard);
+      }
+
+      /* Priority colors */
+      .priority-high .priority-indicator {
+        background-color: #f14c4c;
+      }
+
+      .priority-medium .priority-indicator {
+        background-color: #cca700;
+      }
+
+      .priority-low .priority-indicator {
+        background-color: #89d185;
+      }
+
+      /* Selected state with glow effect */
+      .priority-option input[type='radio']:checked ~ .priority-indicator {
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+        transform: scale(1.1);
+      }
+
+      .priority-high input[type='radio']:checked ~ .priority-indicator {
+        box-shadow: 0 0 8px 2px rgba(241, 76, 76, 0.5);
+        transform: scale(1.1);
+      }
+
+      .priority-medium input[type='radio']:checked ~ .priority-indicator {
+        box-shadow: 0 0 8px 2px rgba(204, 167, 0, 0.5);
+        transform: scale(1.1);
+      }
+
+      .priority-low input[type='radio']:checked ~ .priority-indicator {
+        box-shadow: 0 0 8px 2px rgba(137, 209, 133, 0.5);
+        transform: scale(1.1);
+      }
+
+      .priority-option input[type='radio']:checked {
         outline: none;
       }
-      input#prio-3 {
-        background-color: #b30000;
-      }
-      input#prio-3:checked {
-        background-color: #ff0000;
-        box-shadow: 0 0 3em #ff3333;
-      }
-      input#prio-2 {
-        background-color: #b2b300;
-      }
-      input#prio-2:checked {
-        background-color: #ffff00;
-        box-shadow: 0 0 3em #ffff33;
-      }
-      input#prio-1 {
-        background-color: #00b300;
-      }
-      input#prio-1:checked {
-        background-color: #00ff00;
-        box-shadow: 0 0 3em #33ff33;
+
+      .priority-option:has(input[type='radio']:checked) {
+        border-color: var(--color-input-focus-border);
+        background-color: var(--color-input-bg);
+        box-shadow: 0 0 0 1px var(--color-input-focus-border);
       }
 
-      /* form arrangement */
+      /* Focus states for accessibility */
+      .priority-option input[type='radio']:focus-visible ~ .priority-indicator {
+        outline: 2px solid var(--color-input-focus-border);
+        outline-offset: 2px;
+      }
+
+      /* form arrangement - single column layout */
       .form-container {
         display: flex;
+        flex-direction: column;
+        gap: 16px;
+        max-width: 100%;
+        animation: fadeIn 0.2s ease-in;
       }
 
-      .col-right {
-        padding-left: 20px;
-        justify-self: center;
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .form-field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        transition: opacity var(--transition-standard);
+      }
+
+      .form-field:focus-within label {
+        color: var(--color-input-focus-border);
+      }
+
+      .form-field:focus-within label .codicon {
+        transform: scale(1.1);
+      }
+
+      .form-field label {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: var(--spacing-xs);
+        color: var(--color-input-fg);
+        transition: color var(--transition-standard);
+      }
+
+      /* Icon styling for form labels */
+      .form-field label .codicon {
+        font-size: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        transition: transform var(--transition-standard), opacity var(--transition-standard);
+      }
+
+      /* Ensure proper alignment of icons with text */
+      .form-field label .codicon::before {
+        display: block;
+      }
+
+      /* Title field emphasis */
+      .form-field:has(#title) {
+        margin-bottom: var(--spacing-sm);
+      }
+
+      .form-field:has(#title) label {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      #title {
+        font-size: 15px;
+        font-weight: 500;
+        padding: var(--spacing-md) var(--spacing-md);
+      }
+
+      /* Visual grouping with subtle separators */
+      /* Add spacing after the additional info field (end of basic info group) */
+      .form-field:has(#additional) {
+        margin-bottom: var(--spacing-xl);
+        padding-bottom: var(--spacing-lg);
+        border-bottom: 1px solid var(--color-input-border);
+      }
+
+      /* Add spacing after priority field (end of priority group) */
+      .form-field.priority-field {
+        margin-bottom: var(--spacing-xl);
+        padding-bottom: var(--spacing-lg);
+        border-bottom: 1px solid var(--color-input-border);
+      }
+
+      /* Ensure consistent spacing within groups */
+      .form-field:has(#category),
+      .form-field:has(#comment),
+      .form-field:has(#assignee),
+      .form-field:has(#issue_id),
+      .form-field:has(#status) {
+        margin-bottom: var(--spacing-lg);
+      }
+
+      .filename-header {
+        display: none; /* Hide filename header */
+      }
+
+      /* Two-column layout for status/category and assignee/issue */
+      .form-row-2col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--spacing-md);
+      }
+
+      /* Compact priority selector */
+      .priority-field-compact .priority-selector {
+        display: flex;
+        gap: var(--spacing-xs);
+        margin-top: var(--spacing-sm);
+      }
+
+      .priority-field-compact .priority-option {
+        min-width: auto;
+        padding: var(--spacing-xs) var(--spacing-sm);
+        flex: 0 0 auto;
+      }
+
+      .priority-field-compact .priority-label {
+        display: none; /* Hide text labels in compact mode */
+      }
+
+      .priority-field-compact .priority-indicator {
+        width: 16px;
+        height: 16px;
+      }
+
+      /* Toggle Switch Component */
+      .toggle-field {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .toggle-field > label:first-child {
+        margin-bottom: 0;
+      }
+
+      .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+        display: inline-block;
+        flex-shrink: 0;
+      }
+
+      .toggle-switch input[type='checkbox'] {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        position: absolute;
+      }
+
+      .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--color-input-bg);
+        border: 1px solid var(--color-input-border);
+        border-radius: 24px;
+        transition: background-color var(--transition-toggle), border-color var(--transition-toggle),
+          box-shadow var(--transition-toggle);
+      }
+
+      .toggle-slider::before {
+        position: absolute;
+        content: '';
+        height: 18px;
+        width: 18px;
+        left: 2px;
+        bottom: 2px;
+        background-color: var(--color-input-fg);
+        border-radius: 50%;
+        transition: transform var(--transition-toggle);
+        will-change: transform;
+      }
+
+      .toggle-switch input[type='checkbox']:checked + .toggle-slider {
+        background-color: var(--color-button-primary-bg);
+        border-color: var(--color-button-primary-bg);
+      }
+
+      .toggle-switch input[type='checkbox']:checked + .toggle-slider::before {
+        transform: translateX(20px);
+      }
+
+      .toggle-switch input[type='checkbox']:focus + .toggle-slider {
+        outline: 1px solid var(--color-input-focus-border);
+        outline-offset: 2px;
+      }
+
+      .toggle-switch input[type='checkbox']:focus-visible + .toggle-slider {
+        outline: 2px solid var(--color-input-focus-border);
+        outline-offset: 2px;
+      }
+
+      .toggle-switch:hover .toggle-slider {
+        border-color: var(--color-input-focus-border);
+        box-shadow: 0 0 0 1px var(--color-input-focus-border);
+      }
+
+      /* Status Dropdown Color Coding */
+      .status-select {
+        position: relative;
+        transition: border-color var(--transition-standard), box-shadow var(--transition-standard),
+          color var(--transition-standard), background-color var(--transition-standard),
+          transform var(--transition-standard);
+      }
+
+      /* Status color indicators using pseudo-element */
+      .status-select option {
+        padding-left: var(--spacing-xl);
+      }
+
+      /* Status color classes */
+      .status-open {
+        color: #007acc;
+        transition: color var(--transition-standard);
+      }
+
+      .status-in-progress {
+        color: #cca700;
+        transition: color var(--transition-standard);
+      }
+
+      .status-resolved {
+        color: #89d185;
+        transition: color var(--transition-standard);
+      }
+
+      .status-closed {
+        color: #858585;
+        transition: color var(--transition-standard);
+      }
+
+      /* Light theme adjustments for status colors */
+      body.vscode-light .status-open {
+        color: #005a9e;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-in-progress {
+        color: #9d7e00;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-resolved {
+        color: #5a9e57;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-closed {
+        color: #6b6b6b;
+        transition: color var(--transition-standard);
+      }
+
+      /* Dark theme adjustments for status colors */
+      body.vscode-dark .status-open {
+        color: #3794ff;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-in-progress {
+        color: #e5c800;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-resolved {
+        color: #89d185;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-closed {
+        color: #a0a0a0;
+        transition: color var(--transition-standard);
+      }
+
+      /* Status dropdown hover and focus states */
+      .status-select:hover {
+        border-color: var(--color-input-focus-border);
+        transform: translateY(-1px);
+      }
+
+      .status-select:focus {
+        outline: none;
+        border-color: var(--color-input-focus-border);
+        box-shadow: 0 0 0 1px var(--color-input-focus-border);
+        transform: translateY(0);
+      }
+
+      /* Add visual indicator dot before status text */
+      .status-select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cccccc' d='M6 9L1 4h10z'/%3E%3C/svg%3E"),
+          radial-gradient(circle, currentColor 40%, transparent 40%);
+        background-repeat: no-repeat, no-repeat;
+        background-position: right var(--spacing-sm) center, left var(--spacing-md) center;
+        background-size: 12px 12px, 8px 8px;
+        padding-left: calc(var(--spacing-md) + var(--spacing-lg));
+      }
+
+      /* Dynamic status color based on selected value */
+      .status-select[data-status='open'] {
+        color: #007acc;
+        transition: color var(--transition-standard);
+      }
+
+      .status-select[data-status='in-progress'] {
+        color: #cca700;
+        transition: color var(--transition-standard);
+      }
+
+      .status-select[data-status='resolved'] {
+        color: #89d185;
+        transition: color var(--transition-standard);
+      }
+
+      .status-select[data-status='closed'] {
+        color: #858585;
+        transition: color var(--transition-standard);
+      }
+
+      /* Light theme status select colors */
+      body.vscode-light .status-select[data-status='open'] {
+        color: #005a9e;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-select[data-status='in-progress'] {
+        color: #9d7e00;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-select[data-status='resolved'] {
+        color: #5a9e57;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-select[data-status='closed'] {
+        color: #6b6b6b;
+        transition: color var(--transition-standard);
+      }
+
+      /* Dark theme status select colors */
+      body.vscode-dark .status-select[data-status='open'] {
+        color: #3794ff;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-select[data-status='in-progress'] {
+        color: #e5c800;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-select[data-status='resolved'] {
+        color: #89d185;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-select[data-status='closed'] {
+        color: #a0a0a0;
+        transition: color var(--transition-standard);
+      }
+
+      /* Responsive Layout */
+      /* Ensure form container uses flexbox and prevents overflow */
+      body {
+        margin: 0;
+        padding: var(--spacing-lg);
+        overflow-x: hidden;
+        box-sizing: border-box;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      .note-form {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      .form-container {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0; /* Allows flex items to shrink below content size */
+      }
+
+      /* Ensure all form fields are flexible */
+      .form-field {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      /* Prevent inputs from causing overflow */
+      .form-field input,
+      .form-field textarea,
+      .form-field select {
+        max-width: 100%;
+        min-width: 0;
+      }
+
+      /* Flexible button layout */
+      .actions {
+        width: 100%;
+        max-width: 100%;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .actions-left {
+        flex-wrap: wrap;
+        min-width: 0;
+      }
+
+      /* Ensure buttons don't overflow */
+      .action-btn {
+        flex-shrink: 1;
+        min-width: fit-content;
+      }
+
+      /* Priority selector responsive behavior */
+      .priority-selector {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      .priority-option {
+        flex: 1 1 auto;
+        min-width: fit-content;
+      }
+
+      /* Responsive breakpoints for narrow panels (< 400px) */
+      @media (max-width: 400px) {
+        body {
+          padding: var(--spacing-md);
+        }
+
+        /* Reduce spacing in narrow panels */
+        .form-container {
+          gap: var(--spacing-md);
+        }
+
+        .form-field {
+          gap: 6px;
+        }
+
+        .form-field label {
+          margin-bottom: 2px;
+        }
+
+        /* Adjust filename header */
+        .filename-header {
+          display: none;
+        }
+
+        /* Stack 2-column layouts on narrow screens */
+        .form-row-2col {
+          grid-template-columns: 1fr;
+        }
+
+        /* Show priority labels on narrow screens */
+        .priority-field-compact .priority-label {
+          display: inline;
+        }
+
+        .priority-field-compact .priority-option {
+          padding: var(--spacing-sm) var(--spacing-md);
+        }
+
+        /* Stack priority options vertically on very narrow screens */
+        .priority-selector {
+          flex-direction: column;
+          gap: var(--spacing-sm);
+        }
+
+        .priority-option {
+          width: 100%;
+          justify-content: flex-start;
+        }
+
+        /* Optimize button layout for small widths */
+        .actions {
+          flex-direction: column;
+          gap: var(--spacing-md);
+          align-items: stretch;
+        }
+
+        .actions-left {
+          width: 100%;
+          flex-direction: column;
+          gap: var(--spacing-sm);
+        }
+
+        .action-btn {
+          width: 100%;
+          justify-content: center;
+        }
+
+        /* Ensure touch targets remain accessible (min 44px height) */
+        .action-btn {
+          min-height: 44px;
+          padding: var(--spacing-md) var(--spacing-lg);
+        }
+
+        .priority-option {
+          min-height: 44px;
+        }
+
+        .toggle-switch {
+          min-width: 44px;
+          min-height: 44px;
+          width: 44px;
+          height: 28px;
+        }
+
+        /* Adjust input padding for better touch targets */
+        input,
+        select,
+        textarea {
+          padding: var(--spacing-md);
+          min-height: 44px;
+        }
+
+        textarea {
+          min-height: 100px;
+        }
+      }
+
+      /* Medium screens (400px - 600px) */
+      @media (min-width: 400px) and (max-width: 600px) {
+        /* Keep priority selector horizontal but allow wrapping */
+        .priority-selector {
+          flex-wrap: wrap;
+        }
+
+        .priority-option {
+          flex: 1 1 calc(50% - 6px);
+          min-width: 100px;
+        }
+
+        /* Optimize button spacing */
+        .actions {
+          gap: var(--spacing-md);
+        }
+
+        .actions-left {
+          gap: var(--spacing-sm);
+        }
+      }
+
+      /* Ensure no horizontal scrolling at any width */
+      html {
+        overflow-x: hidden;
+      }
+
+      body {
+        overflow-x: hidden;
+        width: 100%;
+      }
+
+      /* Additional safeguards against overflow */
+      .form-field label {
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+      }
+
+      .priority-label {
+        white-space: nowrap;
+      }
+
+      .btn-text {
+        white-space: nowrap;
       }
     </style>
   </head>
 
   <body>
-    <h2>FILENAME</h2>
-
-    <!--<h3>LINES</h3>-->
+    <h2 class="filename-header">FILENAME</h2>
 
     <form class="note-form">
       <div class="form-container">
-        <div class="col-left">
-          <label for="title">Title</label>
+        <!-- Status and Category in 2 columns -->
+        <div class="form-row-2col">
+          <!-- Status Field -->
+          <div class="form-field">
+            <label for="status">
+              <span class="codicon codicon-pulse"></span>
+              Status
+            </label>
+            <select id="status" name="status" class="status-select" data-status="open" aria-label="Select status">
+              STATUS_LIST_STRING
+            </select>
+          </div>
 
-          <input id="title" name="title" type="text" placeholder="A short description (e.g. 'Method too complex')" />
+          <!-- Category Field -->
+          <div class="form-field">
+            <label for="category">
+              <span class="codicon codicon-tag"></span>
+              Category
+            </label>
+            <select id="category" name="category" aria-label="Select category">
+              <option value=""></option>
+              SELECT_LIST_STRING
+            </select>
+          </div>
+        </div>
 
-          <label for="category">Category</label>
+        <!-- Priority in single row -->
+        <div class="form-field priority-field priority-field-compact">
+          <label id="priority">
+            <span class="codicon codicon-flame"></span>
+            Priority
+          </label>
+          <div class="priority-selector" role="radiogroup" aria-labelledby="priority">
+            <label class="priority-option priority-high" title="High priority">
+              <input type="radio" name="traffic-light-color" id="prio-3" value="3" aria-label="Priority: high" />
+              <span class="priority-indicator"></span>
+              <span class="priority-label">High</span>
+            </label>
+            <label class="priority-option priority-medium" title="Medium priority">
+              <input type="radio" name="traffic-light-color" id="prio-2" value="2" aria-label="Priority: medium" />
+              <span class="priority-indicator"></span>
+              <span class="priority-label">Medium</span>
+            </label>
+            <label class="priority-option priority-low" title="Low priority">
+              <input type="radio" name="traffic-light-color" id="prio-1" value="1" aria-label="Priority: low" />
+              <span class="priority-indicator"></span>
+              <span class="priority-label">Low</span>
+            </label>
+          </div>
+        </div>
 
-          <select id="category" name="category">
-            <option value=""></option>
-            SELECT_LIST_STRING
-          </select>
+        <!-- Assignee and Issue ID in 2 columns -->
+        <div class="form-row-2col">
+          <!-- Assignee Field -->
+          <div class="form-field">
+            <label for="assignee">
+              <span class="codicon codicon-person"></span>
+              Assignee
+            </label>
+            <select id="assignee" name="assignee" aria-label="Select assignee">
+              <option value=""></option>
+              ASSIGNEE_LIST_STRING
+            </select>
+          </div>
 
-          <label for="comment">Description</label>
+          <!-- Issue ID Field -->
+          <div class="form-field">
+            <label for="issue_id">
+              <span class="codicon codicon-symbol-number"></span>
+              Issue ID
+            </label>
+            <input
+              id="issue_id"
+              name="issue_id"
+              type="text"
+              placeholder="e.g. JIRA-123"
+              aria-label="Issue identifier"
+            />
+          </div>
+        </div>
 
+        <!-- Title Field -->
+        <div class="form-field">
+          <label for="title">
+            <span class="codicon codicon-edit"></span>
+            Title
+          </label>
+          <input
+            id="title"
+            name="title"
+            type="text"
+            placeholder="A short description (e.g. 'Method too complex')"
+            aria-required="true"
+          />
+        </div>
+
+        <!-- Description Field -->
+        <div class="form-field">
+          <label for="comment">
+            <span class="codicon codicon-comment"></span>
+            Description
+          </label>
           <textarea
             id="comment"
             name="comment"
             placeholder="A detailed description (e.g. 'Split method into smaller functions and utils')"
             rows="5"
+            aria-required="true"
           ></textarea>
+        </div>
 
-          <label for="additional">Additional Info</label>
-
+        <!-- Additional Info Field -->
+        <div class="form-field">
+          <label for="additional">
+            <span class="codicon codicon-link"></span>
+            Additional Info
+          </label>
           <input
             id="additional"
             name="additional"
             type="text"
             placeholder="An additional info or link (e.g. 'http://example.com')"
+            aria-label="Additional information or link"
           />
         </div>
 
-        <div class="col-right">
-          <label id="priority">Priority</label>
-
-          <div id="traffic-light" role="radiogroup" aria-labelledby="priority" tabindex="0">
-            <input
-              type="radio"
-              class="traffic-light-color"
-              name="traffic-light-color"
-              id="prio-3"
-              value="3"
-              aria-label="Priority: high"
-            />
-
-            <input
-              type="radio"
-              class="traffic-light-color"
-              name="traffic-light-color"
-              id="prio-2"
-              value="2"
-              aria-label="Priority: middle"
-            />
-
-            <input
-              type="radio"
-              class="traffic-light-color"
-              name="traffic-light-color"
-              id="prio-1"
-              value="1"
-              aria-label="Priority: low"
-            />
-          </div>
-
-          <p>
-            <label for="private">Private</label>
-
+        <!-- Private Field -->
+        <div class="form-field toggle-field">
+          <label for="private">
+            <span class="codicon codicon-lock"></span>
+            Private
+          </label>
+          <label class="toggle-switch">
             <input
               id="private"
               name="private"
               type="checkbox"
               title="Make comment private to keep it for your eyes only"
+              aria-label="Make comment private"
+              role="switch"
+              aria-checked="false"
             />
-          </p>
+            <span class="toggle-slider"></span>
+          </label>
         </div>
       </div>
 
+      <!-- Action Buttons -->
       <div class="actions">
         <div class="actions-left">
           <button
@@ -235,30 +1097,34 @@
             role="button"
             onclick="addNote()"
             title="Save comment (Ctrl+Return)"
+            aria-label="Save comment"
           >
-            Add Note
+            <span class="codicon codicon-check"></span>
+            <span class="btn-text">Add Note</span>
           </button>
-
           <button
             class="action-btn secondary"
             tabindex="0"
             role="button"
             onclick="cancel()"
             title="Abort comment changes (Ctrl+Esc)"
+            aria-label="Cancel changes"
           >
-            Cancel
+            <span class="codicon codicon-close"></span>
+            <span class="btn-text">Cancel</span>
           </button>
         </div>
-
         <button
-          class="action-btn secondary"
+          class="action-btn destructive"
           tabindex="0"
           id="delete-button"
           role="button"
           onclick="deleteComment()"
           title="Delete this comment (Ctrl+Delete)"
+          aria-label="Delete comment"
         >
-          Delete
+          <span class="codicon codicon-trash"></span>
+          <span class="btn-text">Delete</span>
         </button>
       </div>
     </form>
@@ -267,16 +1133,39 @@
   <script>
     const vscode = acquireVsCodeApi();
 
+    // Handle incoming messages to populate form when editing existing comment
     window.addEventListener('message', (event) => {
-      document.getElementById('delete-button').style.visibility = 'visible';
-      document.getElementById('add').innerHTML = 'Update';
-      document.getElementById('add').disabled = false;
+      const deleteButton = document.getElementById('delete-button');
+      deleteButton.style.visibility = 'visible';
+      // Trigger opacity transition after visibility change
+      setTimeout(() => {
+        deleteButton.style.opacity = '1';
+      }, 10);
+      const addButton = document.getElementById('add');
+      addButton.querySelector('.btn-text').textContent = 'Update';
+      addButton.disabled = false;
+
+      // Populate all form fields with existing comment data
       document.getElementById('title').value = event.data.comment.title || '';
       document.getElementById('comment').value = event.data.comment.comment || '';
       document.getElementById('additional').value = event.data.comment.additional || '';
       document.getElementById('category').value = event.data.comment.category;
-      document.getElementById('private').checked = Number(event.data.comment.private) !== 0;
 
+      // Set toggle switch state (checkbox within toggle component)
+      const privateCheckbox = document.getElementById('private');
+      privateCheckbox.checked = Number(event.data.comment.private) !== 0;
+      privateCheckbox.setAttribute('aria-checked', privateCheckbox.checked ? 'true' : 'false');
+
+      document.getElementById('assignee').value = event.data.comment.assignee || '';
+      document.getElementById('issue_id').value = event.data.comment.issue_id || '';
+      document.getElementById('status').value = event.data.comment.status || 'Open';
+
+      // Update status color indicator
+      const statusSelect = document.getElementById('status');
+      const selectedValue = statusSelect.value.toLowerCase().replace(/\s+/g, '-');
+      statusSelect.setAttribute('data-status', selectedValue);
+
+      // Set priority selector (radio button in new horizontal layout)
       if (event.data.comment.priority) {
         document.getElementById('prio-' + event.data.comment.priority).checked = true;
       }
@@ -318,14 +1207,62 @@
     // Give focus to the comment to allow immediate typing.
     document.getElementById('comment').focus();
 
+    // Toggle switch keyboard and accessibility support
+    const privateCheckbox = document.getElementById('private');
+
+    // Update aria-checked when checkbox state changes
+    privateCheckbox.addEventListener('change', function () {
+      this.setAttribute('aria-checked', this.checked ? 'true' : 'false');
+    });
+
+    // Handle Space and Enter keys for toggle switch
+    privateCheckbox.addEventListener('keydown', function (event) {
+      if (event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        this.checked = !this.checked;
+        this.setAttribute('aria-checked', this.checked ? 'true' : 'false');
+        this.dispatchEvent(new Event('change'));
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        this.checked = !this.checked;
+        this.setAttribute('aria-checked', this.checked ? 'true' : 'false');
+        this.dispatchEvent(new Event('change'));
+      }
+    });
+
+    // Status dropdown color coding support
+    const statusSelect = document.getElementById('status');
+
+    // Function to update status color indicator
+    function updateStatusColor() {
+      const selectedValue = statusSelect.value.toLowerCase().replace(/\s+/g, '-');
+      statusSelect.setAttribute('data-status', selectedValue);
+    }
+
+    // Update color when status changes
+    statusSelect.addEventListener('change', updateStatusColor);
+
+    // Initialize status color on load
+    updateStatusColor();
+
     function addNote() {
+      // Collect form data from all fields
       const title = document.getElementById('title').value;
       const comment = document.getElementById('comment').value;
+
+      // Read priority from the new radio button selector
       const trafficLightEl = document.querySelector('input[name=traffic-light-color]:checked');
       const priority = trafficLightEl ? trafficLightEl.value : 0;
+
       const category = document.getElementById('category').value;
       const additional = document.getElementById('additional').value;
-      const private = document.getElementById('private').checked ? 1 : 0;
+
+      // Read toggle switch value (checkbox input within toggle component)
+      const privateValue = document.getElementById('private').checked ? 1 : 0;
+
+      const assignee = document.getElementById('assignee').value;
+      const issue_id = document.getElementById('issue_id').value;
+      const status = document.getElementById('status').value;
 
       const formData = {
         sha: '',
@@ -337,8 +1274,11 @@
         priority: Number(priority),
         category,
         additional,
-        private: Number(private),
+        private: Number(privateValue),
         code: '',
+        assignee,
+        issue_id,
+        status,
       };
 
       vscode.postMessage({

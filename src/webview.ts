@@ -96,6 +96,9 @@ export class WebViewComponent {
               category: formData.category || '',
               priority: formData.priority || 0,
               private: formData.private || 0,
+              assignee: formData.assignee || '',
+              issue_id: formData.issue_id || '',
+              status: formData.status || 'Open',
             };
             commentService.updateComment(newEntry, this.getWorkingEditor());
             panel.dispose();
@@ -179,11 +182,34 @@ export class WebViewComponent {
     let selectListString = this.categories.reduce((current, category) => {
       return current + `<option value="${category}">${category}</option>`;
     }, '');
+
+    // Read assignee options from configuration
+    const assigneeOptions = workspace.getConfiguration().get('code-review.assigneeOptions') as string[];
+    let assigneeListString = '';
+    if (assigneeOptions && assigneeOptions.length > 0) {
+      assigneeListString = assigneeOptions.reduce((current, assignee) => {
+        return current + `<option value="${assignee}">${assignee}</option>`;
+      }, '');
+    }
+
+    // Read status options from configuration with fallback to default values
+    const statusOptions = (workspace.getConfiguration().get('code-review.statusOptions') as string[]) || [
+      'Open',
+      'In Progress',
+      'Resolved',
+      'Closed',
+    ];
+    let statusListString = statusOptions.reduce((current, status) => {
+      return current + `<option value="${status}">${status}</option>`;
+    }, '');
+
     const uri = Uri.joinPath(this.context.extensionUri, 'dist', 'webview.html');
     const pathUri = uri.with({ scheme: 'vscode-resource' });
     return fs
       .readFileSync(pathUri.fsPath, 'utf8')
       .replace('SELECT_LIST_STRING', selectListString)
+      .replace('ASSIGNEE_LIST_STRING', assigneeListString)
+      .replace('STATUS_LIST_STRING', statusListString)
       .replace('FILENAME', path.basename(fileName));
   }
 }

@@ -33,6 +33,14 @@ export interface CsvEntry {
    * 1 = private
    */
   private: number;
+  /** Assignee responsible for the comment */
+  assignee: string;
+  /** ID of the related issue */
+  issue_id: string;
+  /** Status of the comment */
+  status: string;
+  /** Author of the comment */
+  author: string;
 }
 
 /**
@@ -50,6 +58,21 @@ export function createCommentFromObject(object: any | CsvEntry): CsvEntry {
   }
   const comment = JSON.parse(object) as CsvEntry;
   comment.id = CsvStructure.getDefaultValue('id')!;
+
+  // Initialize new fields with defaults if not present
+  if (!comment.assignee) {
+    comment.assignee = CsvStructure.getDefaultValue('assignee')!;
+  }
+  if (!comment.issue_id) {
+    comment.issue_id = CsvStructure.getDefaultValue('issue_id')!;
+  }
+  if (!comment.status) {
+    comment.status = CsvStructure.getDefaultValue('status')!;
+  }
+  if (!comment.author) {
+    comment.author = CsvStructure.getDefaultValue('author')!;
+  }
+
   return comment;
 }
 
@@ -77,6 +100,10 @@ export class CsvStructure {
     'additional',
     'id',
     'private',
+    'assignee',
+    'issue_id',
+    'status',
+    'author',
   ];
 
   /**
@@ -88,6 +115,10 @@ export class CsvStructure {
   private static readonly defaults: Map<string, () => any> = new Map([
     ['id', () => uuidv4()],
     ['private', () => 0],
+    ['assignee', () => ''],
+    ['issue_id', () => ''],
+    ['status', () => 'Open'],
+    ['author', () => ''],
   ]);
 
   /**
@@ -103,6 +134,10 @@ export class CsvStructure {
     ['additional', (additional: any) => (additional ? escapeDoubleQuotesForCsv(additional) : '')],
     ['category', (category: any) => category || ''],
     ['private', (priv: any) => priv || 0],
+    ['assignee', (assignee: any) => (assignee ? escapeDoubleQuotesForCsv(assignee) : '')],
+    ['issue_id', (issue_id: any) => (issue_id ? escapeDoubleQuotesForCsv(issue_id) : '')],
+    ['status', (status: any) => status || 'Open'],
+    ['author', (author: any) => (author ? escapeDoubleQuotesForCsv(author) : '')],
   ]);
 
   /**
@@ -175,6 +210,12 @@ export class CsvStructure {
     comment.comment = unescapeEndOfLineFromCsv(comment.comment);
     comment.priority = Number(comment.priority);
     comment.private = Number(comment.private);
+
+    // Handle new fields with backward compatibility
+    comment.assignee = comment.assignee || '';
+    comment.issue_id = comment.issue_id || '';
+    comment.status = comment.status || 'Open';
+    comment.author = comment.author || '';
 
     return comment;
   }
