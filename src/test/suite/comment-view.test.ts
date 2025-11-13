@@ -393,7 +393,7 @@ suite('Comment View - Filter Functionality', () => {
 
       commentsProvider.setAuthorFilter('john.doe');
       commentsProvider.setStatusFilter(['Open', 'In Progress']);
-      commentsProvider.clearFilters();
+      commentsProvider.clearAllFilters();
 
       const filters = commentsProvider.getActiveFilters();
 
@@ -449,7 +449,7 @@ suite('Comment View - Filter Functionality', () => {
       let files = await commentsProvider.getChildren();
       assert.strictEqual(files.length, 1, 'Should return one file with filter applied');
 
-      commentsProvider.clearFilters();
+      commentsProvider.clearAllFilters();
       files = await commentsProvider.getChildren();
       assert.strictEqual(files.length, 2, 'Should return all files after clearing filters');
 

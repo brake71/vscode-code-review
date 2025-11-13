@@ -17,6 +17,7 @@ This extension allows you to create a code review file you can hand over to a cu
 - [Features](#features)
   - [create review notes](#create-review-notes)
   - [Code Review Comment Explorer - update, view and delete comments](#code-review-comment-explorer---update-view-and-delete-comments)
+    - [Filtering Comments](#filtering-comments)
   - [export created notes as HTML](#export-created-notes-as-html)
     - [Default HTML template](#default-html-template)
     - [Custom HTML handlebars template](#custom-html-handlebars-template)
@@ -69,13 +70,27 @@ A file `code-review.csv` will be created containing your comments and the file a
 The result will look like this:
 
 ```csv
-sha,filename,url,lines,title,comment,priority,additional
-"b45d2822d6c87770af520d7e2acc49155f0b4362","/test/a.txt","https://github.com/d-koppenhagen/vscode-code-review/tree/b45d2822d6c87770af520d7e2acc49155f0b4362/test/a.txt","1:2-4:3","foo","this should be refactored","Complexity",1,"see http://foo.bar"
-"b45d2822d6c87770af520d7e2acc49155f0b4362","/test/b.txt","https://github.com/d-koppenhagen/vscode-code-review/tree/b45d2822d6c87770af520d7e2acc49155f0b4362/test/b.txt","1:0-1:4|4:0-4:3","bar","wrong format","Best Practices",1,""
+sha,filename,url,lines,title,comment,priority,additional,status,assignee
+"b45d2822d6c87770af520d7e2acc49155f0b4362","/test/a.txt","https://github.com/d-koppenhagen/vscode-code-review/tree/b45d2822d6c87770af520d7e2acc49155f0b4362/test/a.txt","1:2-4:3","foo","this should be refactored","Complexity",1,"see http://foo.bar","open","John Doe"
+"b45d2822d6c87770af520d7e2acc49155f0b4362","/test/b.txt","https://github.com/d-koppenhagen/vscode-code-review/tree/b45d2822d6c87770af520d7e2acc49155f0b4362/test/b.txt","1:0-1:4|4:0-4:3","bar","wrong format","Best Practices",1,"","resolved","Jane Smith"
 ```
+
+The CSV file includes the following columns:
+- **sha**: Git commit hash
+- **filename**: Relative path to the file
+- **url**: Full URL to the file (based on baseUrl/customUrl settings)
+- **lines**: Selected ranges or cursor positions (separated by `|`)
+- **title**: Comment title/category
+- **comment**: The actual comment text
+- **priority**: Priority level (1-3)
+- **additional**: Additional notes or references
+- **status**: Current status of the comment (e.g., open, resolved, in progress)
+- **assignee**: Person assigned to address the comment
 
 The line column indicates an array of selected ranges or cursor positions separated by a `|` sign.
 E.g. `"1:0-1:4|4:0-4:3"` means that the comment is related to the range marked from line 1 position 0 to line 1 position 4 and line 4 position 0 to line 4 position 3.
+
+Comments in the explorer display the assignee information directly in the description (e.g., `@John Doe`) and in tooltips, making it easy to see who is responsible for addressing each comment.
 
 ![Demo](./images/demo.gif)
 
@@ -92,6 +107,53 @@ Selecting an entry will open the comment in the webview form, so you can edit an
 Performing a right-click on an item, will let you delete a comment.
 
 ![Demo: Code Review Comment Explorer](./images/code-review-explorer.gif)
+
+#### Filtering Comments
+
+The Comment Explorer provides powerful filtering capabilities to help you focus on specific comments:
+
+**Available Filters:**
+
+- **Author Filter** - Filter comments by the person who created them
+- **Assignee Filter** - Filter comments by the person assigned to address them (including unassigned comments)
+- **Status Filter** - Filter comments by their current status (e.g., open, resolved, in progress)
+- **Commit Filter** - View only comments from the current commit
+- **Filename Filter** - View only comments from the current file
+- **Priority Filter** - Hide comments with low priority (green traffic light)
+
+**Using Filters:**
+
+Each filter has a unique icon in the Comment Explorer toolbar. Click on a filter icon to:
+- Select from available values (e.g., list of authors, assignees, or statuses)
+- Choose "(Clear filter)" to remove that specific filter
+- For assignee filter, select "(Unassigned)" to view comments without an assignee
+
+**Visual Indicators:**
+
+- Filter icons change appearance when active, making it easy to see which filters are currently applied
+- The status bar shows the count of filtered comments vs. total comments
+- Multiple filters can be combined - only comments matching all criteria will be displayed
+
+**Clear All Filters:**
+
+When one or more filters are active, a "Clear All Filters" button appears in the toolbar. Click it to quickly remove all active filters and view all comments.
+
+**State Persistence:**
+
+Your filter settings are automatically saved and restored when you reopen VS Code, so you don't need to reconfigure them each time. Filter states are saved per workspace, allowing different filter configurations for different projects.
+
+**Filter Icons:**
+
+Each filter type has unique icons that change based on their state:
+
+| Filter Type | Inactive | Active |
+|------------|----------|--------|
+| Author | ![Author Off](./images/icons/filter-author-off-light.svg) | ![Author On](./images/icons/filter-author-on-light.svg) |
+| Assignee | ![Assignee Off](./images/icons/filter-assignee-off-light.svg) | ![Assignee On](./images/icons/filter-assignee-on-light.svg) |
+| Status | ![Status Off](./images/icons/filter-status-off-light.svg) | ![Status On](./images/icons/filter-status-on-light.svg) |
+| Priority | ![Priority Off](./images/icons/filter-priority-off-light.svg) | ![Priority On](./images/icons/filter-priority-on-light.svg) |
+| Filename | ![Filename Off](./images/icons/filter-filename-off-light.svg) | ![Filename On](./images/icons/filter-filename-on-light.svg) |
+| Clear All | ![Clear Filters](./images/icons/clear-filters-light.svg) | (Visible only when filters are active) |
 
 ### export created notes as HTML
 

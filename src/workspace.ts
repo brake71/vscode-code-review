@@ -54,6 +54,11 @@ export class WorkspaceContext {
   private filterByPriorityDisableRegistration!: Disposable;
   private filterByAuthorRegistration!: Disposable;
   private filterByStatusRegistration!: Disposable;
+  private filterByAssigneeRegistration!: Disposable;
+  private clearAuthorFilterRegistration!: Disposable;
+  private clearAssigneeFilterRegistration!: Disposable;
+  private clearStatusFilterRegistration!: Disposable;
+  private clearAllFiltersRegistration!: Disposable;
   private setReviewFileSelectedCsvRegistration!: Disposable;
   private deleteNoteRegistration!: Disposable;
   private exportAsHtmlWithDefaultTemplateRegistration!: Disposable;
@@ -103,9 +108,9 @@ export class WorkspaceContext {
 
   watchActiveEditor() {
     // Refresh comment view on file focus
-    window.onDidChangeActiveTextEditor((_) => {
+    window.onDidChangeActiveTextEditor(async (_) => {
       if (this.exportFactory.refreshFilterByFilename()) {
-        this.commentsProvider.refresh();
+        await this.commentsProvider.refresh();
       }
       this.updateDecorations();
     });
@@ -156,9 +161,9 @@ export class WorkspaceContext {
     const gitDirectory = (workspace.getConfiguration().get('code-review.gitDirectory') as string) ?? '.';
     const gitHeadPath = path.resolve(gitDirectory, '.git/HEAD');
     const gitWatcher = workspace.createFileSystemWatcher(`**${gitHeadPath}`);
-    gitWatcher.onDidChange(() => {
+    gitWatcher.onDidChange(async () => {
       this.exportFactory.refreshFilterByCommit();
-      this.commentsProvider.refresh();
+      await this.commentsProvider.refresh();
       this.updateDecorations();
     });
   }
@@ -176,15 +181,18 @@ export class WorkspaceContext {
   watchForFileChanges() {
     // refresh comment view on manual changes in the review file
     checkForCodeReviewFile(this.generator.absoluteReviewFilePath);
-    this.fileWatcher.onDidChange(() => {
-      this.commentsProvider.refresh();
+    this.fileWatcher.onDidChange(async () => {
+      this.exportFactory.invalidateCache();
+      await this.commentsProvider.refresh();
     });
-    this.fileWatcher.onDidCreate(() => {
-      this.commentsProvider.refresh();
+    this.fileWatcher.onDidCreate(async () => {
+      this.exportFactory.invalidateCache();
+      await this.commentsProvider.refresh();
       checkForCodeReviewFile(this.generator.absoluteReviewFilePath);
     });
-    this.fileWatcher.onDidDelete(() => {
-      this.commentsProvider.refresh();
+    this.fileWatcher.onDidDelete(async () => {
+      this.exportFactory.invalidateCache();
+      await this.commentsProvider.refresh();
       checkForCodeReviewFile(this.generator.absoluteReviewFilePath);
     });
   }
@@ -218,6 +226,10 @@ export class WorkspaceContext {
     /**
      * register comment view
      */
+    // Dispose old provider if it exists
+    if (this.commentsProvider) {
+      this.commentsProvider.dispose();
+    }
     this.commentsProvider = new CommentsProvider(this.context, this.exportFactory);
   }
 
@@ -269,7 +281,7 @@ export class WorkspaceContext {
     /**
      * register comment panel web view
      */
-    this.addNoteRegistration = commands.registerCommand('codeReview.addNote', () => {
+    this.addNoteRegistration = commands.registerCommand('codeReview.addNote', async () => {
       if (!window.activeTextEditor?.selection) {
         window.showErrorMessage(
           `No selection made. Please select something you want to add a comment to and try again.`,
@@ -282,33 +294,45 @@ export class WorkspaceContext {
       }
 
       this.webview.addComment(this.commentService);
-      this.commentsProvider.refresh();
+      await this.commentsProvider.refresh();
       this.updateDecorations();
     });
 
-    this.filterByCommitEnableRegistration = commands.registerCommand('codeReview.filterByCommitEnable', () => {
-      this.setFilterByCommit(true);
+    this.filterByCommitEnableRegistration = commands.registerCommand('codeReview.filterByCommitEnable', async () => {
+      await this.setFilterByCommit(true);
     });
 
-    this.filterByCommitDisableRegistration = commands.registerCommand('codeReview.filterByCommitDisable', () => {
-      this.setFilterByCommit(false);
+    this.filterByCommitDisableRegistration = commands.registerCommand('codeReview.filterByCommitDisable', async () => {
+      await this.setFilterByCommit(false);
     });
 
-    this.filterByFilenameEnableRegistration = commands.registerCommand('codeReview.filterByFilenameEnable', () => {
-      this.setFilterByFilename(true);
-    });
+    this.filterByFilenameEnableRegistration = commands.registerCommand(
+      'codeReview.filterByFilenameEnable',
+      async () => {
+        await this.setFilterByFilename(true);
+      },
+    );
 
-    this.filterByFilenameDisableRegistration = commands.registerCommand('codeReview.filterByFilenameDisable', () => {
-      this.setFilterByFilename(false);
-    });
+    this.filterByFilenameDisableRegistration = commands.registerCommand(
+      'codeReview.filterByFilenameDisable',
+      async () => {
+        await this.setFilterByFilename(false);
+      },
+    );
 
-    this.filterByPriorityEnableRegistration = commands.registerCommand('codeReview.filterByPriorityEnable', () => {
-      this.setFilterByPriority(true);
-    });
+    this.filterByPriorityEnableRegistration = commands.registerCommand(
+      'codeReview.filterByPriorityEnable',
+      async () => {
+        await this.setFilterByPriority(true);
+      },
+    );
 
-    this.filterByPriorityDisableRegistration = commands.registerCommand('codeReview.filterByPriorityDisable', () => {
-      this.setFilterByPriority(false);
-    });
+    this.filterByPriorityDisableRegistration = commands.registerCommand(
+      'codeReview.filterByPriorityDisable',
+      async () => {
+        await this.setFilterByPriority(false);
+      },
+    );
 
     /**
      * Filter comments by author
@@ -326,9 +350,9 @@ export class WorkspaceContext {
       });
 
       if (selected === '(Clear filter)') {
-        this.commentsProvider.setAuthorFilter(null);
+        await this.commentsProvider.setAuthorFilter(null);
       } else if (selected) {
-        this.commentsProvider.setAuthorFilter(selected);
+        await this.commentsProvider.setAuthorFilter(selected);
       }
     });
 
@@ -360,14 +384,66 @@ export class WorkspaceContext {
       if (selected && selected.length > 0) {
         // Check if clear filter was selected
         if (selected.some((s: StatusPickItem) => s.value === null)) {
-          this.commentsProvider.setStatusFilter([]);
+          await this.commentsProvider.setStatusFilter([]);
         } else {
           const statuses = selected
             .map((s: StatusPickItem) => s.value)
             .filter((v: string | null) => v !== null) as string[];
-          this.commentsProvider.setStatusFilter(statuses);
+          await this.commentsProvider.setStatusFilter(statuses);
         }
       }
+    });
+
+    /**
+     * Filter comments by assignee
+     */
+    this.filterByAssigneeRegistration = commands.registerCommand('codeReview.filterByAssignee', async () => {
+      const assignees = await this.exportFactory.getUniqueAssignees();
+
+      if (assignees.length === 0) {
+        window.showInformationMessage('No assignees found in comments');
+        return;
+      }
+
+      const selected = await window.showQuickPick(['(Clear filter)', '(Unassigned)', ...assignees], {
+        placeHolder: 'Select assignee to filter by',
+      });
+
+      if (selected === '(Clear filter)') {
+        await this.commentsProvider.setAssigneeFilter(null);
+      } else if (selected === '(Unassigned)') {
+        await this.commentsProvider.setAssigneeFilter('');
+      } else if (selected) {
+        await this.commentsProvider.setAssigneeFilter(selected);
+      }
+    });
+
+    /**
+     * Clear author filter
+     */
+    this.clearAuthorFilterRegistration = commands.registerCommand('codeReview.clearAuthorFilter', async () => {
+      await this.commentsProvider.setAuthorFilter(null);
+    });
+
+    /**
+     * Clear assignee filter
+     */
+    this.clearAssigneeFilterRegistration = commands.registerCommand('codeReview.clearAssigneeFilter', async () => {
+      await this.commentsProvider.setAssigneeFilter(null);
+    });
+
+    /**
+     * Clear status filter
+     */
+    this.clearStatusFilterRegistration = commands.registerCommand('codeReview.clearStatusFilter', async () => {
+      await this.commentsProvider.setStatusFilter([]);
+    });
+
+    /**
+     * Clear all filters
+     */
+    this.clearAllFiltersRegistration = commands.registerCommand('codeReview.clearAllFilters', async () => {
+      await this.commentsProvider.clearAllFilters();
     });
 
     this.setReviewFileSelectedCsvRegistration = commands.registerCommand('codeReview.setReviewFileSelectedCsv', () => {
@@ -385,12 +461,12 @@ export class WorkspaceContext {
     /**
      * delete an existing comment
      */
-    this.deleteNoteRegistration = commands.registerCommand('codeReview.deleteNote', (entry: CommentListEntry) => {
+    this.deleteNoteRegistration = commands.registerCommand('codeReview.deleteNote', async (entry: CommentListEntry) => {
       if (!this.generator.check()) {
         return;
       }
       this.webview.deleteComment(this.commentService, entry);
-      this.commentsProvider.refresh();
+      await this.commentsProvider.refresh();
       this.updateDecorations();
     });
 
@@ -521,9 +597,9 @@ export class WorkspaceContext {
           if (filename) {
             const mode = workspace.getConfiguration().get('code-review.importConflictMode') as string;
             if (mode !== '') {
-              this.importFactory.importCommentsFromFile(filename!.fsPath, mode as ConflictMode).then((result) => {
+              this.importFactory.importCommentsFromFile(filename!.fsPath, mode as ConflictMode).then(async (result) => {
                 if (result) {
-                  this.commentsProvider.refresh();
+                  await this.commentsProvider.refresh();
                 }
               });
             } else {
@@ -569,9 +645,9 @@ export class WorkspaceContext {
                 )
                 .then((item) => {
                   if (item) {
-                    this.importFactory.importCommentsFromFile(filename!.fsPath, item.mode).then((result) => {
+                    this.importFactory.importCommentsFromFile(filename!.fsPath, item.mode).then(async (result) => {
                       if (result) {
-                        this.commentsProvider.refresh();
+                        await this.commentsProvider.refresh();
                       }
                     });
                   }
@@ -607,6 +683,11 @@ export class WorkspaceContext {
       this.filterByPriorityDisableRegistration,
       this.filterByAuthorRegistration,
       this.filterByStatusRegistration,
+      this.filterByAssigneeRegistration,
+      this.clearAuthorFilterRegistration,
+      this.clearAssigneeFilterRegistration,
+      this.clearStatusFilterRegistration,
+      this.clearAllFiltersRegistration,
       this.setReviewFileSelectedCsvRegistration,
       this.exportAsHtmlWithDefaultTemplateRegistration,
       this.exportAsHtmlWithHandlebarsTemplateRegistration,
@@ -636,6 +717,11 @@ export class WorkspaceContext {
     this.filterByPriorityDisableRegistration.dispose();
     this.filterByAuthorRegistration.dispose();
     this.filterByStatusRegistration.dispose();
+    this.filterByAssigneeRegistration.dispose();
+    this.clearAuthorFilterRegistration.dispose();
+    this.clearAssigneeFilterRegistration.dispose();
+    this.clearStatusFilterRegistration.dispose();
+    this.clearAllFiltersRegistration.dispose();
     this.setReviewFileSelectedCsvRegistration.dispose();
     this.exportAsHtmlWithDefaultTemplateRegistration.dispose();
     this.exportAsHtmlWithHandlebarsTemplateRegistration.dispose();
@@ -657,18 +743,18 @@ export class WorkspaceContext {
     this.registerCommands();
   }
 
-  private setFilterByFilename(state: boolean) {
+  private async setFilterByFilename(state: boolean) {
     this.exportFactory.setFilterByFilename(state);
-    this.commentsProvider.refresh();
+    await this.commentsProvider.refresh();
   }
 
-  private setFilterByCommit(state: boolean) {
+  private async setFilterByCommit(state: boolean) {
     this.exportFactory.setFilterByCommit(state);
-    this.commentsProvider.refresh();
+    await this.commentsProvider.refresh();
   }
 
-  private setFilterByPriority(state: boolean) {
+  private async setFilterByPriority(state: boolean) {
     this.exportFactory.setFilterByPriority(state);
-    this.commentsProvider.refresh();
+    await this.commentsProvider.refresh();
   }
 }

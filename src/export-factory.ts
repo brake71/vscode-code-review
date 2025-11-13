@@ -100,17 +100,28 @@ export class ExportFactory {
   private currentFilename: string | null = null;
   private filterByPriority: boolean = false;
 
+  // Cache properties
+  private commentCache: Map<string, CsvEntry[]> = new Map();
+  private cacheTimestamp: number = 0;
+  private readonly cacheTtl = 5000; // 5 seconds
+
   /**
    * Get comment eligibility
    * @param entry The comment to evaluate
    * @param filterAuthor Optional author filter
    * @param filterStatuses Optional status filter
+   * @param filterAssignee Optional assignee filter
    */
-  private isCommentEligible(entry: CsvEntry, filterAuthor?: string | null, filterStatuses?: string[]): boolean {
+  private isCommentEligible(
+    entry: CsvEntry,
+    filterAuthor?: string | null,
+    filterStatuses?: string[],
+    filterAssignee?: string | null,
+  ): boolean {
     const baseEligibility =
       (this.currentCommitId === null || entry.sha === this.currentCommitId) &&
       (this.currentFilename === null || entry.filename === this.currentFilename) &&
-      (!this.filterByPriority || entry.priority != 1); // prio value 1 = green traffic light
+      (!this.filterByPriority || entry.priority !== 1); // prio value 1 = green traffic light
 
     // Apply author filter if specified
     const authorMatch = !filterAuthor || entry.author === filterAuthor;
@@ -118,7 +129,14 @@ export class ExportFactory {
     // Apply status filter if specified
     const statusMatch = !filterStatuses || filterStatuses.length === 0 || filterStatuses.includes(entry.status);
 
-    return baseEligibility && authorMatch && statusMatch;
+    // Apply assignee filter if specified
+    // Handle "(Unassigned)" case: empty string matches empty/null assignee
+    const assigneeMatch =
+      !filterAssignee ||
+      (filterAssignee === '' && (!entry.assignee || entry.assignee.trim() === '')) ||
+      entry.assignee === filterAssignee;
+
+    return baseEligibility && authorMatch && statusMatch && assigneeMatch;
   }
 
   private exportHandlerMap = new Map<ExportFormat, ExportMap>([
@@ -389,7 +407,7 @@ export class ExportFactory {
       .on('data', (comment: CsvEntry) => {
         comment = CsvStructure.finalizeParse(comment);
 
-        if (this.isCommentEligible(comment, null, undefined)) {
+        if (this.isCommentEligible(comment, null, undefined, null)) {
           if (this.includePrivateComments || comment.private === 0) {
             if (exporter?.storeOutside) {
               const tmp = exporter.handleData(outputFile, comment);
@@ -409,14 +427,16 @@ export class ExportFactory {
    * @param commentGroupedInFile The file containing comments
    * @param filterAuthor Optional author filter
    * @param filterStatuses Optional status filter
+   * @param filterAssignee Optional assignee filter
    */
   getComments(
     commentGroupedInFile: CommentListEntry,
     filterAuthor?: string | null,
     filterStatuses?: string[],
+    filterAssignee?: string | null,
   ): Thenable<CommentListEntry[]> {
     let entries = commentGroupedInFile.data.lines
-      .filter((entry: CsvEntry) => this.isCommentEligible(entry, filterAuthor, filterStatuses))
+      .filter((entry: CsvEntry) => this.isCommentEligible(entry, filterAuthor, filterStatuses, filterAssignee))
       .map((entry: CsvEntry) => {
         entry = CsvStructure.finalizeParse(entry);
         (entry as Model).location = parseLocation(entry.lines);
@@ -488,10 +508,12 @@ export class ExportFactory {
    * Get files containing comments
    * @param filterAuthor Optional author filter
    * @param filterStatuses Optional status filter
+   * @param filterAssignee Optional assignee filter
    */
   public getFilesContainingComments(
     filterAuthor?: string | null,
     filterStatuses?: string[],
+    filterAssignee?: string | null,
   ): Thenable<CommentListEntry[]> {
     if (!fs.existsSync(this.absoluteFilePath) || !this.generator.check()) {
       return Promise.resolve([]);
@@ -503,7 +525,7 @@ export class ExportFactory {
       parseFile(this.absoluteFilePath, { delimiter: ',', ignoreEmpty: true, headers: true })
         .on('error', () => this.handleError)
         .on('data', (row: CsvEntry) => {
-          if (this.isCommentEligible(row, filterAuthor, filterStatuses)) {
+          if (this.isCommentEligible(row, filterAuthor, filterStatuses, filterAssignee)) {
             entries.push(row);
           }
         })
@@ -732,5 +754,60 @@ export class ExportFactory {
           resolve(Array.from(authors).sort());
         });
     });
+  }
+
+  /**
+   * Get unique assignees from all comments
+   * @returns Promise with array of unique assignee names
+   */
+  public getUniqueAssignees(): Promise<string[]> {
+    if (!fs.existsSync(this.absoluteFilePath) || !this.generator.check()) {
+      return Promise.resolve([]);
+    }
+
+    const assignees = new Set<string>();
+
+    return new Promise((resolve) => {
+      parseFile(this.absoluteFilePath, { delimiter: ',', ignoreEmpty: true, headers: true })
+        .on('error', () => this.handleError)
+        .on('data', (row: CsvEntry) => {
+          if (row.assignee && row.assignee.trim() !== '') {
+            assignees.add(row.assignee);
+          }
+        })
+        .on('end', () => {
+          resolve(Array.from(assignees).sort());
+        });
+    });
+  }
+
+  /**
+   * Get cached comments if cache is still valid
+   * @returns Cached comments array or null if cache is invalid/expired
+   */
+  private getCachedComments(): CsvEntry[] | null {
+    if (Date.now() - this.cacheTimestamp > this.cacheTtl) {
+      this.commentCache.clear();
+      return null;
+    }
+    return this.commentCache.get('all') || null;
+  }
+
+  /**
+   * Set cached comments and update timestamp
+   * @param comments Array of comments to cache
+   */
+  private setCachedComments(comments: CsvEntry[]): void {
+    this.commentCache.set('all', comments);
+    this.cacheTimestamp = Date.now();
+  }
+
+  /**
+   * Invalidate the comment cache
+   * This should be called when the review file changes
+   */
+  public invalidateCache(): void {
+    this.commentCache.clear();
+    this.cacheTimestamp = 0;
   }
 }

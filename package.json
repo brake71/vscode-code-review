@@ -2,7 +2,7 @@
   "name": "vscode-code-review",
   "displayName": "Code Review",
   "description": "Create expert reviews / code reviews for a workspace that can be exported as a document for handing over to customers",
-  "version": "1.34.0",
+  "version": "1.34.1",
   "publisher": "d-koppenhagen",
   "author": "Danny Koppenhagen <mail@d-koppenhagen.de> (https://k9n.dev)",
   "homepage": "https://github.com/d-koppenhagen/vscode-code-review",
@@ -140,16 +140,56 @@
         "command": "codeReview.filterByAuthor",
         "title": "Code Review: Filter comments by author",
         "icon": {
-          "light": "images/icons/filter-off-light.svg",
-          "dark": "images/icons/filter-off-dark.svg"
+          "light": "images/icons/filter-author-off-light.svg",
+          "dark": "images/icons/filter-author-off-dark.svg"
+        }
+      },
+      {
+        "command": "codeReview.filterByAssignee",
+        "title": "Code Review: Filter comments by assignee",
+        "icon": {
+          "light": "images/icons/filter-assignee-off-light.svg",
+          "dark": "images/icons/filter-assignee-off-dark.svg"
         }
       },
       {
         "command": "codeReview.filterByStatus",
         "title": "Code Review: Filter comments by status",
         "icon": {
-          "light": "images/icons/filter-off-light.svg",
-          "dark": "images/icons/filter-off-dark.svg"
+          "light": "images/icons/filter-status-off-light.svg",
+          "dark": "images/icons/filter-status-off-dark.svg"
+        }
+      },
+      {
+        "command": "codeReview.clearAuthorFilter",
+        "title": "Code Review: Clear author filter",
+        "icon": {
+          "light": "images/icons/filter-author-on-light.svg",
+          "dark": "images/icons/filter-author-on-dark.svg"
+        }
+      },
+      {
+        "command": "codeReview.clearAssigneeFilter",
+        "title": "Code Review: Clear assignee filter",
+        "icon": {
+          "light": "images/icons/filter-assignee-on-light.svg",
+          "dark": "images/icons/filter-assignee-on-dark.svg"
+        }
+      },
+      {
+        "command": "codeReview.clearStatusFilter",
+        "title": "Code Review: Clear status filter",
+        "icon": {
+          "light": "images/icons/filter-status-on-light.svg",
+          "dark": "images/icons/filter-status-on-dark.svg"
+        }
+      },
+      {
+        "command": "codeReview.clearAllFilters",
+        "title": "Code Review: Clear all filters",
+        "icon": {
+          "light": "images/icons/clear-filters-light.svg",
+          "dark": "images/icons/clear-filters-dark.svg"
         }
       },
       {
@@ -247,13 +287,38 @@
         },
         {
           "command": "codeReview.filterByAuthor",
-          "when": "view == code-review.list",
+          "when": "view == code-review.list && !isFilteredByAuthor",
           "group": "navigation@4"
         },
         {
-          "command": "codeReview.filterByStatus",
-          "when": "view == code-review.list",
+          "command": "codeReview.clearAuthorFilter",
+          "when": "view == code-review.list && isFilteredByAuthor",
+          "group": "navigation@4"
+        },
+        {
+          "command": "codeReview.filterByAssignee",
+          "when": "view == code-review.list && !isFilteredByAssignee",
           "group": "navigation@5"
+        },
+        {
+          "command": "codeReview.clearAssigneeFilter",
+          "when": "view == code-review.list && isFilteredByAssignee",
+          "group": "navigation@5"
+        },
+        {
+          "command": "codeReview.filterByStatus",
+          "when": "view == code-review.list && !isFilteredByStatus",
+          "group": "navigation@6"
+        },
+        {
+          "command": "codeReview.clearStatusFilter",
+          "when": "view == code-review.list && isFilteredByStatus",
+          "group": "navigation@6"
+        },
+        {
+          "command": "codeReview.clearAllFilters",
+          "when": "view == code-review.list && hasActiveFilters",
+          "group": "navigation@7"
         }
       ],
       "view/item/context": [
