@@ -65,7 +65,12 @@ export class WebViewComponent {
     this.panel?.dispose();
   }
 
-  editComment(commentService: ReviewCommentService, selections: Range[], data: CsvEntry) {
+  editComment(
+    commentService: ReviewCommentService,
+    selections: Range[],
+    data: CsvEntry,
+    onUpdate?: () => Promise<void>,
+  ) {
     const editor = this.getWorkingEditor();
     // Clear the current text selection to avoid unwanted code selection changes.
     // (see `ReviewCommentService::getSelectedLines()`).
@@ -100,7 +105,11 @@ export class WebViewComponent {
               issue_id: formData.issue_id || '',
               status: formData.status || 'Open',
             };
-            commentService.updateComment(newEntry, this.getWorkingEditor());
+            commentService.updateComment(newEntry, this.getWorkingEditor()).then(() => {
+              if (onUpdate) {
+                onUpdate();
+              }
+            });
             panel.dispose();
             break;
 
@@ -117,7 +126,7 @@ export class WebViewComponent {
                   panel.dispose();
                 } else {
                   // on cancel: load webview again
-                  this.editComment(commentService, selections, data);
+                  this.editComment(commentService, selections, data, onUpdate);
                 }
               });
             break;
