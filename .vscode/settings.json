@@ -37,5 +37,7 @@
     "editor.defaultFormatter": null
   },
   "cSpell.words": ["gitlab", "jira", "prio", "vsce"],
-  "markdown.extension.toc.levels": "2..6"
+  "markdown.extension.toc.levels": "2..6",
+  "code-review.statusOptions": ["Open", "In Progress", "Resolved", "Closed", "Verification"],
+  "code-review.assigneeOptions": ["John Doe", "Jane Smith", "Bob Johnson"]
 }

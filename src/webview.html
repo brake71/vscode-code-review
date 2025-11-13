@@ -179,6 +179,23 @@
             type="text"
             placeholder="An additional info or link (e.g. 'http://example.com')"
           />
+
+          <label for="assignee">Assignee</label>
+
+          <select id="assignee" name="assignee">
+            <option value=""></option>
+            ASSIGNEE_LIST_STRING
+          </select>
+
+          <label for="issue_id">Issue ID</label>
+
+          <input id="issue_id" name="issue_id" type="text" placeholder="e.g. JIRA-123, #456" />
+
+          <label for="status">Status</label>
+
+          <select id="status" name="status">
+            STATUS_LIST_STRING
+          </select>
         </div>
 
         <div class="col-right">
@@ -276,6 +293,9 @@
       document.getElementById('additional').value = event.data.comment.additional || '';
       document.getElementById('category').value = event.data.comment.category;
       document.getElementById('private').checked = Number(event.data.comment.private) !== 0;
+      document.getElementById('assignee').value = event.data.comment.assignee || '';
+      document.getElementById('issue_id').value = event.data.comment.issue_id || '';
+      document.getElementById('status').value = event.data.comment.status || 'Open';
 
       if (event.data.comment.priority) {
         document.getElementById('prio-' + event.data.comment.priority).checked = true;
@@ -326,6 +346,9 @@
       const category = document.getElementById('category').value;
       const additional = document.getElementById('additional').value;
       const private = document.getElementById('private').checked ? 1 : 0;
+      const assignee = document.getElementById('assignee').value;
+      const issue_id = document.getElementById('issue_id').value;
+      const status = document.getElementById('status').value;
 
       const formData = {
         sha: '',
@@ -339,6 +362,9 @@
         additional,
         private: Number(private),
         code: '',
+        assignee,
+        issue_id,
+        status,
       };
 
       vscode.postMessage({

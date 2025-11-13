@@ -51,6 +51,8 @@ export class WorkspaceContext {
   private filterByFilenameDisableRegistration!: Disposable;
   private filterByPriorityEnableRegistration!: Disposable;
   private filterByPriorityDisableRegistration!: Disposable;
+  private filterByAuthorRegistration!: Disposable;
+  private filterByStatusRegistration!: Disposable;
   private setReviewFileSelectedCsvRegistration!: Disposable;
   private deleteNoteRegistration!: Disposable;
   private exportAsHtmlWithDefaultTemplateRegistration!: Disposable;
@@ -286,6 +288,66 @@ export class WorkspaceContext {
 
     this.filterByPriorityDisableRegistration = commands.registerCommand('codeReview.filterByPriorityDisable', () => {
       this.setFilterByPriority(false);
+    });
+
+    /**
+     * Filter comments by author
+     */
+    this.filterByAuthorRegistration = commands.registerCommand('codeReview.filterByAuthor', async () => {
+      const authors = await this.exportFactory.getUniqueAuthors();
+
+      if (authors.length === 0) {
+        window.showInformationMessage('No authors found in comments');
+        return;
+      }
+
+      const selected = await window.showQuickPick(['(Clear filter)', ...authors], {
+        placeHolder: 'Select author to filter by',
+      });
+
+      if (selected === '(Clear filter)') {
+        this.commentsProvider.setAuthorFilter(null);
+      } else if (selected) {
+        this.commentsProvider.setAuthorFilter(selected);
+      }
+    });
+
+    /**
+     * Filter comments by status
+     */
+    this.filterByStatusRegistration = commands.registerCommand('codeReview.filterByStatus', async () => {
+      const statusOptions = (workspace.getConfiguration().get('code-review.statusOptions') as string[]) || [
+        'Open',
+        'In Progress',
+        'Resolved',
+        'Closed',
+      ];
+
+      class StatusPickItem implements QuickPickItem {
+        constructor(public label: string, public value: string | null, public description?: string | undefined) {}
+      }
+
+      const items: StatusPickItem[] = [
+        new StatusPickItem('(Clear filter)', null, 'Clear status filter'),
+        ...statusOptions.map((s: string) => new StatusPickItem(s, s)),
+      ];
+
+      const selected = await window.showQuickPick(items, {
+        placeHolder: 'Select status(es) to filter by',
+        canPickMany: true,
+      });
+
+      if (selected && selected.length > 0) {
+        // Check if clear filter was selected
+        if (selected.some((s: StatusPickItem) => s.value === null)) {
+          this.commentsProvider.setStatusFilter([]);
+        } else {
+          const statuses = selected
+            .map((s: StatusPickItem) => s.value)
+            .filter((v: string | null) => v !== null) as string[];
+          this.commentsProvider.setStatusFilter(statuses);
+        }
+      }
     });
 
     this.setReviewFileSelectedCsvRegistration = commands.registerCommand('codeReview.setReviewFileSelectedCsv', () => {
@@ -525,6 +587,8 @@ export class WorkspaceContext {
       this.filterByFilenameDisableRegistration,
       this.filterByPriorityEnableRegistration,
       this.filterByPriorityDisableRegistration,
+      this.filterByAuthorRegistration,
+      this.filterByStatusRegistration,
       this.setReviewFileSelectedCsvRegistration,
       this.exportAsHtmlWithDefaultTemplateRegistration,
       this.exportAsHtmlWithHandlebarsTemplateRegistration,
@@ -552,6 +616,8 @@ export class WorkspaceContext {
     this.filterByFilenameDisableRegistration.dispose();
     this.filterByPriorityEnableRegistration.dispose();
     this.filterByPriorityDisableRegistration.dispose();
+    this.filterByAuthorRegistration.dispose();
+    this.filterByStatusRegistration.dispose();
     this.setReviewFileSelectedCsvRegistration.dispose();
     this.exportAsHtmlWithDefaultTemplateRegistration.dispose();
     this.exportAsHtmlWithHandlebarsTemplateRegistration.dispose();

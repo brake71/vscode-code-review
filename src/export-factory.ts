@@ -103,13 +103,22 @@ export class ExportFactory {
   /**
    * Get comment eligibility
    * @param entry The comment to evaluate
+   * @param filterAuthor Optional author filter
+   * @param filterStatuses Optional status filter
    */
-  private isCommentEligible(entry: CsvEntry): boolean {
-    return (
+  private isCommentEligible(entry: CsvEntry, filterAuthor?: string | null, filterStatuses?: string[]): boolean {
+    const baseEligibility =
       (this.currentCommitId === null || entry.sha === this.currentCommitId) &&
       (this.currentFilename === null || entry.filename === this.currentFilename) &&
-      (!this.filterByPriority || entry.priority != 1) // prio value 1 = green traffic light
-    );
+      (!this.filterByPriority || entry.priority != 1); // prio value 1 = green traffic light
+
+    // Apply author filter if specified
+    const authorMatch = !filterAuthor || entry.author === filterAuthor;
+
+    // Apply status filter if specified
+    const statusMatch = !filterStatuses || filterStatuses.length === 0 || filterStatuses.includes(entry.status);
+
+    return baseEligibility && authorMatch && statusMatch;
   }
 
   private exportHandlerMap = new Map<ExportFormat, ExportMap>([
@@ -380,7 +389,7 @@ export class ExportFactory {
       .on('data', (comment: CsvEntry) => {
         comment = CsvStructure.finalizeParse(comment);
 
-        if (this.isCommentEligible(comment)) {
+        if (this.isCommentEligible(comment, null, undefined)) {
           if (this.includePrivateComments || comment.private === 0) {
             if (exporter?.storeOutside) {
               const tmp = exporter.handleData(outputFile, comment);
@@ -397,10 +406,17 @@ export class ExportFactory {
 
   /**
    * get the comments as CommentListEntry for VSCode view
+   * @param commentGroupedInFile The file containing comments
+   * @param filterAuthor Optional author filter
+   * @param filterStatuses Optional status filter
    */
-  getComments(commentGroupedInFile: CommentListEntry): Thenable<CommentListEntry[]> {
+  getComments(
+    commentGroupedInFile: CommentListEntry,
+    filterAuthor?: string | null,
+    filterStatuses?: string[],
+  ): Thenable<CommentListEntry[]> {
     let entries = commentGroupedInFile.data.lines
-      .filter((entry: CsvEntry) => this.isCommentEligible(entry))
+      .filter((entry: CsvEntry) => this.isCommentEligible(entry, filterAuthor, filterStatuses))
       .map((entry: CsvEntry) => {
         entry = CsvStructure.finalizeParse(entry);
         (entry as Model).location = parseLocation(entry.lines);
@@ -419,6 +435,10 @@ export class ExportFactory {
         commentGroupedInFile.data,
         entry.priority,
         entry.private,
+        entry.assignee,
+        entry.issue_id,
+        entry.status,
+        entry.author,
       );
       item.contextValue = 'comment';
       item.command = {
@@ -464,7 +484,15 @@ export class ExportFactory {
     }
   }
 
-  public getFilesContainingComments(): Thenable<CommentListEntry[]> {
+  /**
+   * Get files containing comments
+   * @param filterAuthor Optional author filter
+   * @param filterStatuses Optional status filter
+   */
+  public getFilesContainingComments(
+    filterAuthor?: string | null,
+    filterStatuses?: string[],
+  ): Thenable<CommentListEntry[]> {
     if (!fs.existsSync(this.absoluteFilePath) || !this.generator.check()) {
       return Promise.resolve([]);
     }
@@ -475,7 +503,7 @@ export class ExportFactory {
       parseFile(this.absoluteFilePath, { delimiter: ',', ignoreEmpty: true, headers: true })
         .on('error', () => this.handleError)
         .on('data', (row: CsvEntry) => {
-          if (this.isCommentEligible(row)) {
+          if (this.isCommentEligible(row, filterAuthor, filterStatuses)) {
             entries.push(row);
           }
         })
@@ -679,5 +707,30 @@ export class ExportFactory {
     }
 
     return changedState;
+  }
+
+  /**
+   * Get unique authors from all comments
+   * @returns Promise with array of unique author names
+   */
+  public getUniqueAuthors(): Promise<string[]> {
+    if (!fs.existsSync(this.absoluteFilePath) || !this.generator.check()) {
+      return Promise.resolve([]);
+    }
+
+    const authors = new Set<string>();
+
+    return new Promise((resolve) => {
+      parseFile(this.absoluteFilePath, { delimiter: ',', ignoreEmpty: true, headers: true })
+        .on('error', () => this.handleError)
+        .on('data', (row: CsvEntry) => {
+          if (row.author && row.author.trim() !== '') {
+            authors.add(row.author);
+          }
+        })
+        .on('end', () => {
+          resolve(Array.from(authors).sort());
+        });
+    });
   }
 }
