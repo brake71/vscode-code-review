@@ -69,7 +69,7 @@ export class WebViewComponent {
     commentService: ReviewCommentService,
     selections: Range[],
     data: CsvEntry,
-    onUpdate?: () => Promise<void>,
+    onUpdate?: () => Promise<void> | void,
   ) {
     const editor = this.getWorkingEditor();
     // Clear the current text selection to avoid unwanted code selection changes.
@@ -89,28 +89,35 @@ export class WebViewComponent {
 
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
-      (message) => {
+      async (message) => {
         switch (message.command) {
           case 'submit':
-            const formData = JSON.parse(message.text) as CsvEntry;
-            const newEntry: CsvEntry = {
-              ...data,
-              title: formData.title || '',
-              additional: formData.additional || '',
-              comment: formData.comment || '',
-              category: formData.category || '',
-              priority: formData.priority || 0,
-              private: formData.private || 0,
-              assignee: formData.assignee || '',
-              issue_id: formData.issue_id || '',
-              status: formData.status || 'Open',
-            };
-            commentService.updateComment(newEntry, this.getWorkingEditor()).then(() => {
+            try {
+              const formData = JSON.parse(message.text) as CsvEntry;
+              const newEntry: CsvEntry = {
+                ...data,
+                title: formData.title || '',
+                additional: formData.additional || '',
+                comment: formData.comment || '',
+                category: formData.category || '',
+                priority: formData.priority || 0,
+                private: formData.private || 0,
+                assignee: formData.assignee || '',
+                issue_id: formData.issue_id || '',
+                status: formData.status || 'Open',
+              };
+
+              // Wait for both update and refresh to complete
+              await commentService.updateComment(newEntry, this.getWorkingEditor());
               if (onUpdate) {
-                onUpdate();
+                await onUpdate();
               }
-            });
-            panel.dispose();
+
+              panel.dispose();
+            } catch (error) {
+              window.showErrorMessage(`Failed to update comment: ${error}`);
+              console.error('Error updating comment:', error);
+            }
             break;
 
           case 'cancel':
