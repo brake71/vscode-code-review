@@ -146,6 +146,7 @@ Your filter settings are automatically saved and restored when you reopen VS Cod
 
 Each filter type has unique icons that change based on their state:
 
+<!--
 | Filter Type | Inactive | Active |
 |------------|----------|--------|
 | Author | ![Author Off](./images/icons/filter-author-off-light.svg) | ![Author On](./images/icons/filter-author-on-light.svg) |
@@ -154,6 +155,7 @@ Each filter type has unique icons that change based on their state:
 | Priority | ![Priority Off](./images/icons/filter-priority-off-light.svg) | ![Priority On](./images/icons/filter-priority-on-light.svg) |
 | Filename | ![Filename Off](./images/icons/filter-filename-off-light.svg) | ![Filename On](./images/icons/filter-filename-on-light.svg) |
 | Clear All | ![Clear Filters](./images/icons/clear-filters-light.svg) | (Visible only when filters are active) |
+-->
 
 ### export created notes as HTML
 
