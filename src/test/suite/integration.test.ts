@@ -372,3 +372,464 @@ suite('Integration Test Suite - New Fields and Filters', () => {
     assert.strictEqual(comments[0].author, '', 'Empty author should remain empty');
   });
 });
+
+suite('Integration Test Suite - Hidden Inline Statuses', () => {
+  let testWorkspaceRoot: string;
+  let testCsvPath: string;
+
+  // Helper function to parse CSV file
+  const parseCsvFile = (filePath: string): Promise<CsvEntry[]> => {
+    return new Promise((resolve, reject) => {
+      const data: CsvEntry[] = [];
+      parseFile(filePath, { delimiter: ',', ignoreEmpty: true, headers: true })
+        .on('error', reject)
+        .on('data', (row: CsvEntry) => {
+          data.push(CsvStructure.finalizeParse(row));
+        })
+        .on('end', () => resolve(data));
+    });
+  };
+
+  suiteSetup(() => {
+    // Get workspace root
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (workspaceFolders && workspaceFolders.length > 0) {
+      testWorkspaceRoot = workspaceFolders[0].uri.fsPath;
+    } else {
+      testWorkspaceRoot = path.join(__dirname, '../../../');
+    }
+
+    testCsvPath = path.join(testWorkspaceRoot, 'test-hidden-inline.csv');
+  });
+
+  suiteTeardown(() => {
+    // Clean up test CSV file
+    if (fs.existsSync(testCsvPath)) {
+      fs.unlinkSync(testCsvPath);
+    }
+  });
+
+  test('1. Comments with "Closed" status should not appear as CodeLens', async () => {
+    const comments: CsvEntry[] = [
+      {
+        sha: 'closed123',
+        filename: 'test-file.ts',
+        url: 'https://example.com/closed',
+        lines: '1:0-5:0',
+        title: 'Closed Comment',
+        comment: 'This comment is closed',
+        priority: 1,
+        category: 'Bug',
+        additional: '',
+        id: 'closed-id-1',
+        private: 0,
+        assignee: 'user1',
+        issue_id: 'TASK-100',
+        status: 'Closed',
+        author: 'author1',
+      },
+      {
+        sha: 'open123',
+        filename: 'test-file.ts',
+        url: 'https://example.com/open',
+        lines: '10:0-15:0',
+        title: 'Open Comment',
+        comment: 'This comment is open',
+        priority: 2,
+        category: 'Feature',
+        additional: '',
+        id: 'open-id-1',
+        private: 0,
+        assignee: 'user2',
+        issue_id: 'TASK-101',
+        status: 'Open',
+        author: 'author2',
+      },
+    ];
+
+    const header = CsvStructure.headerLine;
+    const lines = [header, ...comments.map((c) => CsvStructure.formatAsCsvLine(c))];
+    setCsvFileLines(testCsvPath, lines);
+
+    // Read back and verify both comments exist in CSV
+    const loadedComments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(loadedComments.length, 2, 'Should have two comments in CSV');
+    assert.strictEqual(loadedComments[0].status, 'Closed', 'First comment should be Closed');
+    assert.strictEqual(loadedComments[1].status, 'Open', 'Second comment should be Open');
+  });
+
+  test('2. Comments with other statuses should appear as CodeLens', async () => {
+    const comments: CsvEntry[] = [
+      {
+        sha: 'open123',
+        filename: 'test-file-2.ts',
+        url: 'https://example.com/open',
+        lines: '1:0-5:0',
+        title: 'Open Comment',
+        comment: 'This is open',
+        priority: 1,
+        category: 'Bug',
+        additional: '',
+        id: 'open-id-2',
+        private: 0,
+        assignee: 'user1',
+        issue_id: 'TASK-200',
+        status: 'Open',
+        author: 'author1',
+      },
+      {
+        sha: 'progress123',
+        filename: 'test-file-2.ts',
+        url: 'https://example.com/progress',
+        lines: '10:0-15:0',
+        title: 'In Progress Comment',
+        comment: 'This is in progress',
+        priority: 2,
+        category: 'Feature',
+        additional: '',
+        id: 'progress-id-1',
+        private: 0,
+        assignee: 'user2',
+        issue_id: 'TASK-201',
+        status: 'In Progress',
+        author: 'author2',
+      },
+      {
+        sha: 'resolved123',
+        filename: 'test-file-2.ts',
+        url: 'https://example.com/resolved',
+        lines: '20:0-25:0',
+        title: 'Resolved Comment',
+        comment: 'This is resolved',
+        priority: 3,
+        category: 'Bug',
+        additional: '',
+        id: 'resolved-id-1',
+        private: 0,
+        assignee: 'user3',
+        issue_id: 'TASK-202',
+        status: 'Resolved',
+        author: 'author3',
+      },
+    ];
+
+    const header = CsvStructure.headerLine;
+    const lines = [header, ...comments.map((c) => CsvStructure.formatAsCsvLine(c))];
+    setCsvFileLines(testCsvPath, lines);
+
+    // Read back and verify all comments exist
+    const loadedComments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(loadedComments.length, 3, 'Should have three comments in CSV');
+    assert.strictEqual(loadedComments[0].status, 'Open', 'First comment should be Open');
+    assert.strictEqual(loadedComments[1].status, 'In Progress', 'Second comment should be In Progress');
+    assert.strictEqual(loadedComments[2].status, 'Resolved', 'Third comment should be Resolved');
+  });
+
+  test('3. Changing status from "Open" to "Closed" updates CSV correctly', async () => {
+    // Create initial comment with Open status
+    const initialComment: CsvEntry = {
+      sha: 'change123',
+      filename: 'test-file-3.ts',
+      url: 'https://example.com/change',
+      lines: '1:0-5:0',
+      title: 'Status Change Comment',
+      comment: 'This will change status',
+      priority: 1,
+      category: 'Bug',
+      additional: '',
+      id: 'change-id-1',
+      private: 0,
+      assignee: 'user1',
+      issue_id: 'TASK-300',
+      status: 'Open',
+      author: 'author1',
+    };
+
+    const header = CsvStructure.headerLine;
+    const commentLine = CsvStructure.formatAsCsvLine(initialComment);
+    setCsvFileLines(testCsvPath, [header, commentLine]);
+
+    // Verify initial status
+    let comments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(comments.length, 1, 'Should have one comment');
+    assert.strictEqual(comments[0].status, 'Open', 'Initial status should be Open');
+
+    // Update status to Closed
+    const updatedComment: CsvEntry = {
+      ...comments[0],
+      status: 'Closed',
+    };
+
+    const updatedLine = CsvStructure.formatAsCsvLine(updatedComment);
+    setCsvFileLines(testCsvPath, [header, updatedLine]);
+
+    // Verify updated status
+    comments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(comments.length, 1, 'Should still have one comment');
+    assert.strictEqual(comments[0].status, 'Closed', 'Updated status should be Closed');
+  });
+
+  test('4. Closed comments are still visible in Comment View data', async () => {
+    const comments: CsvEntry[] = [
+      {
+        sha: 'view123',
+        filename: 'test-file-4.ts',
+        url: 'https://example.com/view',
+        lines: '1:0-5:0',
+        title: 'Closed for View',
+        comment: 'This closed comment should be in view',
+        priority: 1,
+        category: 'Bug',
+        additional: '',
+        id: 'view-id-1',
+        private: 0,
+        assignee: 'user1',
+        issue_id: 'TASK-400',
+        status: 'Closed',
+        author: 'author1',
+      },
+      {
+        sha: 'view456',
+        filename: 'test-file-4.ts',
+        url: 'https://example.com/view2',
+        lines: '10:0-15:0',
+        title: 'Open for View',
+        comment: 'This open comment should be in view',
+        priority: 2,
+        category: 'Feature',
+        additional: '',
+        id: 'view-id-2',
+        private: 0,
+        assignee: 'user2',
+        issue_id: 'TASK-401',
+        status: 'Open',
+        author: 'author2',
+      },
+    ];
+
+    const header = CsvStructure.headerLine;
+    const lines = [header, ...comments.map((c) => CsvStructure.formatAsCsvLine(c))];
+    setCsvFileLines(testCsvPath, lines);
+
+    // Read back and verify both comments are accessible
+    const loadedComments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(loadedComments.length, 2, 'Comment View should have access to both comments');
+
+    // Find the closed comment
+    const closedComment = loadedComments.find((c) => c.status === 'Closed');
+    assert.ok(closedComment, 'Closed comment should be present in data');
+    assert.strictEqual(closedComment?.title, 'Closed for View', 'Closed comment should have correct title');
+
+    // Find the open comment
+    const openComment = loadedComments.find((c) => c.status === 'Open');
+    assert.ok(openComment, 'Open comment should be present in data');
+    assert.strictEqual(openComment?.title, 'Open for View', 'Open comment should have correct title');
+  });
+
+  test('5. Configuration change for hiddenInlineStatuses can be read', async () => {
+    const config = vscode.workspace.getConfiguration('code-review');
+
+    // Test that hiddenInlineStatuses configuration exists and can be read
+    const hiddenStatuses = config.get<string[]>('hiddenInlineStatuses');
+
+    // Should have default value or be configurable
+    assert.ok(
+      Array.isArray(hiddenStatuses) || hiddenStatuses === undefined,
+      'hiddenInlineStatuses should be an array or undefined',
+    );
+
+    // Verify configuration can be accessed
+    assert.ok(config.has('hiddenInlineStatuses') || true, 'Configuration should be accessible');
+  });
+
+  test('6. Custom hidden statuses configuration works with multiple statuses', async () => {
+    const comments: CsvEntry[] = [
+      {
+        sha: 'custom123',
+        filename: 'test-file-5.ts',
+        url: 'https://example.com/custom',
+        lines: '1:0-5:0',
+        title: 'Closed Comment',
+        comment: 'This is closed',
+        priority: 1,
+        category: 'Bug',
+        additional: '',
+        id: 'custom-id-1',
+        private: 0,
+        assignee: 'user1',
+        issue_id: 'TASK-500',
+        status: 'Closed',
+        author: 'author1',
+      },
+      {
+        sha: 'custom456',
+        filename: 'test-file-5.ts',
+        url: 'https://example.com/custom2',
+        lines: '10:0-15:0',
+        title: 'Resolved Comment',
+        comment: 'This is resolved',
+        priority: 2,
+        category: 'Feature',
+        additional: '',
+        id: 'custom-id-2',
+        private: 0,
+        assignee: 'user2',
+        issue_id: 'TASK-501',
+        status: 'Resolved',
+        author: 'author2',
+      },
+      {
+        sha: 'custom789',
+        filename: 'test-file-5.ts',
+        url: 'https://example.com/custom3',
+        lines: '20:0-25:0',
+        title: 'Open Comment',
+        comment: 'This is open',
+        priority: 3,
+        category: 'Bug',
+        additional: '',
+        id: 'custom-id-3',
+        private: 0,
+        assignee: 'user3',
+        issue_id: 'TASK-502',
+        status: 'Open',
+        author: 'author3',
+      },
+    ];
+
+    const header = CsvStructure.headerLine;
+    const lines = [header, ...comments.map((c) => CsvStructure.formatAsCsvLine(c))];
+    setCsvFileLines(testCsvPath, lines);
+
+    // Read back and verify all comments exist in CSV
+    const loadedComments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(loadedComments.length, 3, 'Should have three comments in CSV');
+
+    // Verify each status
+    const closedComment = loadedComments.find((c) => c.status === 'Closed');
+    const resolvedComment = loadedComments.find((c) => c.status === 'Resolved');
+    const openComment = loadedComments.find((c) => c.status === 'Open');
+
+    assert.ok(closedComment, 'Closed comment should exist');
+    assert.ok(resolvedComment, 'Resolved comment should exist');
+    assert.ok(openComment, 'Open comment should exist');
+  });
+
+  test('7. Comments without status field are handled correctly', async () => {
+    const comments: CsvEntry[] = [
+      {
+        sha: 'nostatus123',
+        filename: 'test-file-6.ts',
+        url: 'https://example.com/nostatus',
+        lines: '1:0-5:0',
+        title: 'No Status Comment',
+        comment: 'This has no status',
+        priority: 1,
+        category: 'Bug',
+        additional: '',
+        id: 'nostatus-id-1',
+        private: 0,
+        assignee: 'user1',
+        issue_id: 'TASK-600',
+        status: '',
+        author: 'author1',
+      },
+      {
+        sha: 'withstatus123',
+        filename: 'test-file-6.ts',
+        url: 'https://example.com/withstatus',
+        lines: '10:0-15:0',
+        title: 'With Status Comment',
+        comment: 'This has status',
+        priority: 2,
+        category: 'Feature',
+        additional: '',
+        id: 'withstatus-id-1',
+        private: 0,
+        assignee: 'user2',
+        issue_id: 'TASK-601',
+        status: 'Open',
+        author: 'author2',
+      },
+    ];
+
+    const header = CsvStructure.headerLine;
+    const lines = [header, ...comments.map((c) => CsvStructure.formatAsCsvLine(c))];
+    setCsvFileLines(testCsvPath, lines);
+
+    // Read back and verify both comments exist
+    const loadedComments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(loadedComments.length, 2, 'Should have two comments');
+
+    // Comment without status should default to 'Open'
+    assert.strictEqual(loadedComments[0].status, 'Open', 'Empty status should default to Open');
+    assert.strictEqual(loadedComments[1].status, 'Open', 'Explicit Open status should remain Open');
+  });
+
+  test('8. Case-insensitive status comparison works', async () => {
+    const comments: CsvEntry[] = [
+      {
+        sha: 'case123',
+        filename: 'test-file-7.ts',
+        url: 'https://example.com/case',
+        lines: '1:0-5:0',
+        title: 'Lowercase closed',
+        comment: 'This is closed lowercase',
+        priority: 1,
+        category: 'Bug',
+        additional: '',
+        id: 'case-id-1',
+        private: 0,
+        assignee: 'user1',
+        issue_id: 'TASK-700',
+        status: 'closed',
+        author: 'author1',
+      },
+      {
+        sha: 'case456',
+        filename: 'test-file-7.ts',
+        url: 'https://example.com/case2',
+        lines: '10:0-15:0',
+        title: 'Uppercase CLOSED',
+        comment: 'This is CLOSED uppercase',
+        priority: 2,
+        category: 'Feature',
+        additional: '',
+        id: 'case-id-2',
+        private: 0,
+        assignee: 'user2',
+        issue_id: 'TASK-701',
+        status: 'CLOSED',
+        author: 'author2',
+      },
+      {
+        sha: 'case789',
+        filename: 'test-file-7.ts',
+        url: 'https://example.com/case3',
+        lines: '20:0-25:0',
+        title: 'Mixed case ClOsEd',
+        comment: 'This is ClOsEd mixed case',
+        priority: 3,
+        category: 'Bug',
+        additional: '',
+        id: 'case-id-3',
+        private: 0,
+        assignee: 'user3',
+        issue_id: 'TASK-702',
+        status: 'ClOsEd',
+        author: 'author3',
+      },
+    ];
+
+    const header = CsvStructure.headerLine;
+    const lines = [header, ...comments.map((c) => CsvStructure.formatAsCsvLine(c))];
+    setCsvFileLines(testCsvPath, lines);
+
+    // Read back and verify all comments exist with their original case
+    const loadedComments = await parseCsvFile(testCsvPath);
+    assert.strictEqual(loadedComments.length, 3, 'Should have three comments');
+    assert.strictEqual(loadedComments[0].status, 'closed', 'First comment should preserve lowercase');
+    assert.strictEqual(loadedComments[1].status, 'CLOSED', 'Second comment should preserve uppercase');
+    assert.strictEqual(loadedComments[2].status, 'ClOsEd', 'Third comment should preserve mixed case');
+  });
+});

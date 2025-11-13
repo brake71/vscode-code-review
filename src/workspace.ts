@@ -41,6 +41,7 @@ export class WorkspaceContext {
   private commentService!: ReviewCommentService;
   private webview: WebViewComponent;
   private commentsProvider!: CommentsProvider;
+  private commentLensProvider!: CommentLensProvider;
   private fileWatcher!: FileSystemWatcher;
 
   private openSelectionRegistration!: Disposable;
@@ -94,6 +95,9 @@ export class WorkspaceContext {
       if (event.affectsConfiguration('code-review.filename')) {
         this.refreshCommands();
       }
+      if (event.affectsConfiguration('code-review.hiddenInlineStatuses')) {
+        this.commentLensProvider?.refresh();
+      }
     });
   }
 
@@ -121,9 +125,25 @@ export class WorkspaceContext {
       if (matchingFile) {
         // iterate over all comments associated with this file
         this.exportFactory.getComments(matchingFile).then((comments) => {
+          // Filter out comments with hidden statuses
+          const hiddenStatuses = (workspace.getConfiguration().get('code-review.hiddenInlineStatuses') as string[]) || [
+            'Closed',
+          ];
+          const visibleComments = comments[0].data.lines.filter((comment: CsvEntry) => {
+            // If comment has no status or empty status, display it
+            if (!comment.status || comment.status.trim() === '') {
+              return true;
+            }
+            // Check if comment status is in the hidden list (case-insensitive)
+            const isHidden = hiddenStatuses.some(
+              (hiddenStatus) => hiddenStatus.toLowerCase() === comment.status.toLowerCase(),
+            );
+            return !isHidden;
+          });
+
           // comments[0] as we only need a single comment related to a line to identify the place where to put it
-          this.decorations.underlineDecoration(comments[0].data.lines, editor);
-          this.decorations.commentIconDecoration(comments[0].data.lines, editor);
+          this.decorations.underlineDecoration(visibleComments, editor);
+          this.decorations.commentIconDecoration(visibleComments, editor);
         });
       }
     });
@@ -565,10 +585,8 @@ export class WorkspaceContext {
      * support code lens for comment annotations in files
      */
     const ALL_FILES: DocumentFilter = { language: '*', scheme: 'file' };
-    this.commentCodeLensProviderregistration = languages.registerCodeLensProvider(
-      ALL_FILES,
-      new CommentLensProvider(this.exportFactory),
-    );
+    this.commentLensProvider = new CommentLensProvider(this.exportFactory);
+    this.commentCodeLensProviderregistration = languages.registerCodeLensProvider(ALL_FILES, this.commentLensProvider);
 
     this.updateSubscriptions();
   }

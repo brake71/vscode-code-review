@@ -438,6 +438,17 @@
             "type": "string"
           },
           "default": []
+        },
+        "code-review.hiddenInlineStatuses": {
+          "type": "array",
+          "title": "Hidden Inline Statuses",
+          "description": "List of comment statuses that should not be displayed inline in the editor (e.g., 'Closed', 'Resolved'). These comments will still be visible in the Comment View panel.",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "Closed"
+          ]
         }
       }
     },
