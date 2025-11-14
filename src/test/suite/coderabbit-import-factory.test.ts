@@ -127,10 +127,11 @@ suite('CodeRabbit Import Factory Test Suite', () => {
         },
       ];
 
-      const comments = connector.extractComments(reviews);
+      const { comments, skippedResolved } = connector.extractComments(reviews);
       assert.strictEqual(comments.length, 1);
       assert.strictEqual(comments[0].id, 'comment-1');
       assert.strictEqual(comments[0].filename, 'src/test.ts');
+      assert.strictEqual(skippedResolved, 0);
     });
 
     test('should filter out resolved comments', () => {
@@ -167,9 +168,66 @@ suite('CodeRabbit Import Factory Test Suite', () => {
         },
       ];
 
-      const comments = connector.extractComments(reviews);
+      const { comments, skippedResolved } = connector.extractComments(reviews);
       assert.strictEqual(comments.length, 1);
       assert.strictEqual(comments[0].id, 'comment-2');
+      assert.strictEqual(skippedResolved, 1);
+    });
+
+    test('should filter out all resolution types', () => {
+      const connector = new CodeRabbitDBConnector(testWorkspaceRoot);
+      const reviews: CodeRabbitReview[] = [
+        {
+          id: '1',
+          status: 'completed',
+          startedAt: '2024-01-01T00:00:00Z',
+          endedAt: '2024-01-01T01:00:00Z',
+          branch: 'main',
+          fileReviewMap: {
+            'src/test.ts': {
+              comments: [
+                {
+                  id: 'comment-1',
+                  filename: 'src/test.ts',
+                  startLine: 10,
+                  endLine: 15,
+                  comment: 'Ignored comment',
+                  resolution: 'ignore',
+                },
+                {
+                  id: 'comment-2',
+                  filename: 'src/test.ts',
+                  startLine: 20,
+                  endLine: 25,
+                  comment: 'Applied suggestion',
+                  resolution: 'applySuggestion',
+                },
+                {
+                  id: 'comment-3',
+                  filename: 'src/test.ts',
+                  startLine: 30,
+                  endLine: 35,
+                  comment: 'Fixed with AI',
+                  resolution: 'fixWithAI',
+                },
+                {
+                  id: 'comment-4',
+                  filename: 'src/test.ts',
+                  startLine: 40,
+                  endLine: 45,
+                  comment: 'Unresolved comment',
+                },
+              ],
+              status: 1,
+            },
+          },
+        },
+      ];
+
+      const { comments, skippedResolved } = connector.extractComments(reviews);
+      assert.strictEqual(comments.length, 1);
+      assert.strictEqual(comments[0].id, 'comment-4');
+      assert.strictEqual(skippedResolved, 3);
     });
   });
 

@@ -267,7 +267,7 @@ export class CodeRabbitDBConnector {
   /**
    * Извлечение всех замечаний из обзоров
    */
-  public extractComments(reviews: CodeRabbitReview[]): CodeRabbitComment[] {
+  public extractComments(reviews: CodeRabbitReview[]): { comments: CodeRabbitComment[]; skippedResolved: number } {
     const allComments: CodeRabbitComment[] = [];
 
     for (const review of reviews) {
@@ -292,10 +292,20 @@ export class CodeRabbitDBConnector {
   /**
    * Фильтрация замечаний по статусу обработки
    */
-  private filterByResolution(comments: CodeRabbitComment[]): CodeRabbitComment[] {
-    return comments.filter((comment) => {
+  private filterByResolution(comments: CodeRabbitComment[]): {
+    comments: CodeRabbitComment[];
+    skippedResolved: number;
+  } {
+    let skippedResolved = 0;
+    const filtered = comments.filter((comment) => {
       const resolution = comment.resolution;
-      return resolution !== 'ignore' && resolution !== 'applySuggestion' && resolution !== 'fixWithAI';
+      const shouldSkip = resolution === 'ignore' || resolution === 'applySuggestion' || resolution === 'fixWithAI';
+      if (shouldSkip) {
+        skippedResolved++;
+      }
+      return !shouldSkip;
     });
+
+    return { comments: filtered, skippedResolved };
   }
 }

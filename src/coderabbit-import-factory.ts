@@ -85,8 +85,11 @@ export class CodeRabbitImportFactory {
       progress.report({ message: 'Processing comments...' });
 
       // Extract comments from reviews
-      const comments = connector.extractComments(reviews);
+      const { comments, skippedResolved } = connector.extractComments(reviews);
+      stats.skippedResolved = skippedResolved;
+      stats.commentsSkipped += skippedResolved;
       ProgressManager.log(`Extracted ${comments.length} comment(s) from reviews`);
+      ProgressManager.log(`Skipped ${skippedResolved} resolved comment(s)`);
 
       // Convert to CSV entries
       const csvEntries = await this.convertToCSVEntries(comments, stats);
@@ -101,6 +104,7 @@ export class CodeRabbitImportFactory {
 
       const { merged, skippedDuplicates } = merger.mergeComments(existing, csvEntries);
       stats.skippedDuplicate = skippedDuplicates;
+      stats.commentsSkipped += skippedDuplicates;
       stats.commentsImported = csvEntries.length - skippedDuplicates;
       ProgressManager.log(`Skipped ${skippedDuplicates} duplicate(s)`);
 
