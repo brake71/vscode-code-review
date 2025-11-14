@@ -25,6 +25,7 @@ import { ReviewFileExportSection } from './interfaces';
 import { CsvEntry } from './model';
 import { CommentListEntry } from './comment-list-entry';
 import { ImportFactory, ConflictMode } from './import-factory';
+import { CodeRabbitImportFactory } from './coderabbit-import-factory';
 import { Decorations } from './utils/decoration-utils';
 import { CommentLensProvider } from './comment-lens-provider';
 
@@ -70,6 +71,7 @@ export class WorkspaceContext {
   private exportAsJiraImportableCsvRegistration!: Disposable;
   private exportAsJsonRegistration!: Disposable;
   private importFromJsonRegistration!: Disposable;
+  private importFromCodeRabbitRegistration!: Disposable;
   private commentCodeLensProviderregistration!: Disposable;
   private decorations: Decorations;
 
@@ -662,6 +664,22 @@ export class WorkspaceContext {
     });
 
     /**
+     * allow users to import comments from CodeRabbit database
+     */
+    this.importFromCodeRabbitRegistration = commands.registerCommand('codeReview.importFromCodeRabbit', async () => {
+      const codeRabbitImportFactory = new CodeRabbitImportFactory(
+        this.workspaceRoot,
+        this.exportFactory.absoluteFilePath,
+        this.generator,
+      );
+      const result = await codeRabbitImportFactory.importFromCodeRabbit();
+      if (result) {
+        await this.commentsProvider.refresh();
+        this.updateDecorations();
+      }
+    });
+
+    /**
      * support code lens for comment annotations in files
      */
     const ALL_FILES: DocumentFilter = { language: '*', scheme: 'file' };
@@ -702,6 +720,7 @@ export class WorkspaceContext {
       this.exportAsJiraImportableCsvRegistration,
       this.exportAsJsonRegistration,
       this.importFromJsonRegistration,
+      this.importFromCodeRabbitRegistration,
       this.commentCodeLensProviderregistration,
     );
   }
@@ -736,6 +755,7 @@ export class WorkspaceContext {
     this.exportAsJiraImportableCsvRegistration.dispose();
     this.exportAsJsonRegistration.dispose();
     this.importFromJsonRegistration.dispose();
+    this.importFromCodeRabbitRegistration.dispose();
     this.commentCodeLensProviderregistration.dispose();
     this.updateSubscriptions();
   }

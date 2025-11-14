@@ -85,6 +85,10 @@
         "title": "Code Review: Import from JSON file"
       },
       {
+        "command": "codeReview.importFromCodeRabbit",
+        "title": "Code Review: Import from CodeRabbit"
+      },
+      {
         "command": "codeReview.deleteNote",
         "title": "Delete"
       },
@@ -249,6 +253,11 @@
           "command": "codeReview.importFromJson",
           "when": "view == code-review.list",
           "group": "share@0"
+        },
+        {
+          "command": "codeReview.importFromCodeRabbit",
+          "when": "view == code-review.list",
+          "group": "share@2"
         },
         {
           "command": "codeReview.addNote",
@@ -607,6 +616,7 @@
   "devDependencies": {
     "@commitlint/cli": "^16.2.4",
     "@commitlint/config-conventional": "^16.2.4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/common-tags": "^1.8.1",
     "@types/glob": "^7.2.0",
     "@types/handlebars": "^4.1.0",
@@ -642,6 +652,7 @@
   },
   "dependencies": {
     "@fast-csv/parse": "^4.3.6",
+    "better-sqlite3": "^9.6.0",
     "common-tags": "^1.8.2",
     "git-commit-id": "^2.0.1",
     "handlebars": "^4.7.7",
