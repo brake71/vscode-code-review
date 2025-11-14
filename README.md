@@ -28,6 +28,7 @@ This extension allows you to create a code review file you can hand over to a cu
     - [export created notes as GitLab importable CSV file](#export-created-notes-as-gitlab-importable-csv-file)
     - [export created notes as GitHub importable CSV file](#export-created-notes-as-github-importable-csv-file)
     - [export created notes as JIRA importable CSV file](#export-created-notes-as-jira-importable-csv-file)
+  - [Import from CodeRabbit](#import-from-coderabbit)
 - [Extension Settings](#extension-settings)
   - [`code-review.filename`](#code-reviewfilename)
   - [`code-review.baseUrl`](#code-reviewbaseurl)
@@ -232,6 +233,76 @@ After exporting, you can import the file in your JIRA instance and probably map 
 
 ![JIRA: import issues from a CSV file](./images/jira-import.png)
 ![JIRA: map CSV file props](./images/jira-import-map.png)
+
+### Import from CodeRabbit
+
+If you're using [CodeRabbit](https://coderabbit.ai/) for AI-powered code reviews in Cursor IDE, you can import review comments directly from CodeRabbit's local database into your code review file. This allows you to manage AI-generated findings alongside your manual review comments.
+
+> 📚 **Documentation**: See the [Quick Start Guide](./docs/coderabbit-import-quickstart.md) for a 5-minute setup or the [Complete Guide](./docs/coderabbit-import-guide.md) for detailed information and troubleshooting.
+
+**How it works:**
+
+1. CodeRabbit stores review data in a SQLite database within Cursor IDE's workspace storage
+2. The extension automatically locates and reads this database
+3. You can filter which reviews to import (by branch, date range, or latest review only)
+4. Comments are converted to the extension's CSV format with proper file references and Git SHA information
+5. Duplicate comments are automatically detected and skipped
+
+**To import from CodeRabbit:**
+
+1. Open the Command Palette (⇧+⌘+P on macOS, ⇧+Ctrl+P on Windows/Linux)
+2. Run the command: **"Code Review: Import from CodeRabbit"**
+3. Configure your import filters:
+   - **Branch filter**: Select a specific Git branch or choose "All branches"
+   - **Start date**: Optionally filter reviews from a specific date (ISO 8601 format: YYYY-MM-DD)
+   - **End date**: Optionally filter reviews until a specific date
+   - **Latest review only**: Check this to import only the most recent review matching your filters
+4. The extension will process the reviews and display import statistics
+
+**What gets imported:**
+
+- Comment text, including suggestions and analysis from CodeRabbit
+- File references with line numbers
+- Severity levels (mapped to priority: critical→3, major→2, minor/trivial→1)
+- Categories from CodeRabbit's indicator types
+- Git commit SHA for each file
+- URLs to view the code in your repository
+
+**What gets filtered out:**
+
+- Comments that were already imported (duplicates)
+- Comments marked as "ignored" in CodeRabbit
+- Comments where suggestions were already applied
+- Comments that were fixed with AI
+- Comments without file references or comment text
+
+**Configuration:**
+
+The import feature uses your existing URL configuration to generate proper links:
+
+- **`code-review.customUrl`** (recommended): Use placeholders for flexible URL generation
+  ```json
+  {
+    "code-review.customUrl": "https://gitlab.com/myorg/myrepo/-/blob/{sha}/{file}#L{start}-{end}"
+  }
+  ```
+
+- **`code-review.baseUrl`** (fallback): Simple base URL that gets appended with SHA and file path
+  ```json
+  {
+    "code-review.baseUrl": "https://github.com/myorg/myrepo/blob"
+  }
+  ```
+
+**Troubleshooting:**
+
+- **"CodeRabbit database not found"**: Make sure you're using Cursor IDE and have run at least one CodeRabbit review in your workspace
+- **"Invalid URL configuration"**: Configure either `code-review.baseUrl` or `code-review.customUrl` in your settings
+- **No comments imported**: Check your filter settings - you might be filtering out all reviews. Try selecting "All branches" and removing date filters
+- **Missing file references**: Some CodeRabbit comments might not have file associations and will be skipped automatically
+- **Git SHA errors**: If the extension can't determine the commit SHA for a file, it will use the current commit's SHA as a fallback
+
+> 💡 **Tip**: Check the extension's Output Channel ("Code Review") for detailed import logs and diagnostics.
 
 ## Extension Settings
 

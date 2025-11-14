@@ -19,6 +19,7 @@ const config = {
   devtool: 'nosources-source-map',
   externals: {
     vscode: 'commonjs vscode', // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
+    'sql.js': 'commonjs sql.js', // sql.js needs to be external to load wasm properly
     // modules added here also need to be added in the .vsceignore file
   },
   resolve: {
@@ -31,7 +32,17 @@ const config = {
   },
   plugins: [
     new CopyPlugin({
-      patterns: ['src/template.default.hbs', 'src/template-markdown.default.hbs', 'src/webview.html', 'images/icons'],
+      patterns: [
+        'src/template.default.hbs',
+        'src/template-markdown.default.hbs',
+        'src/webview.html',
+        'images/icons',
+        // Copy sql.js WASM file to dist
+        {
+          from: 'node_modules/sql.js/dist/sql-wasm.wasm',
+          to: 'sql-wasm.wasm',
+        },
+      ],
     }),
   ],
   module: {
