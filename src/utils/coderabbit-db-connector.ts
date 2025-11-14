@@ -255,12 +255,12 @@ export class CodeRabbitDBConnector {
         // Try to extract branch name by removing workspace path prefix
         let branchName = keyWithoutReviews;
 
-        // Find the last occurrence of workspace root in the key
+        // Normalize both paths for consistent comparison
         const normalizedWorkspaceRoot = this.workspaceRoot.toLowerCase().replace(/[\\/]/g, '\\');
-        const keyLower = keyWithoutReviews.toLowerCase();
+        const normalizedKey = keyWithoutReviews.toLowerCase().replace(/[\\/]/g, '\\');
 
-        if (keyLower.includes(normalizedWorkspaceRoot)) {
-          // Remove workspace path and the separator
+        if (normalizedKey.includes(normalizedWorkspaceRoot)) {
+          // Remove workspace path and the separator using original keyWithoutReviews
           branchName = keyWithoutReviews.substring(normalizedWorkspaceRoot.length);
           // Remove leading separator if present
           if (branchName.startsWith('-') || branchName.startsWith('\\') || branchName.startsWith('/')) {
