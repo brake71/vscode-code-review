@@ -65,7 +65,12 @@ export class WebViewComponent {
     this.panel?.dispose();
   }
 
-  editComment(commentService: ReviewCommentService, selections: Range[], data: CsvEntry) {
+  editComment(
+    commentService: ReviewCommentService,
+    selections: Range[],
+    data: CsvEntry,
+    onUpdate?: () => Promise<void> | void,
+  ) {
     const editor = this.getWorkingEditor();
     // Clear the current text selection to avoid unwanted code selection changes.
     // (see `ReviewCommentService::getSelectedLines()`).
@@ -84,24 +89,36 @@ export class WebViewComponent {
 
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
-      (message) => {
+      async (message) => {
         switch (message.command) {
           case 'submit':
-            const formData = JSON.parse(message.text) as CsvEntry;
-            const newEntry: CsvEntry = {
-              ...data,
-              title: formData.title || '',
-              additional: formData.additional || '',
-              comment: formData.comment || '',
-              category: formData.category || '',
-              priority: formData.priority || 0,
-              private: formData.private || 0,
-              assignee: formData.assignee || '',
-              issue_id: formData.issue_id || '',
-              status: formData.status || 'Open',
-            };
-            commentService.updateComment(newEntry, this.getWorkingEditor());
-            panel.dispose();
+            try {
+              const formData = JSON.parse(message.text) as CsvEntry;
+              const newEntry: CsvEntry = {
+                ...data,
+                title: formData.title || '',
+                additional: formData.additional || '',
+                comment: formData.comment || '',
+                category: formData.category || '',
+                priority: formData.priority || 0,
+                private: formData.private || 0,
+                assignee: formData.assignee || '',
+                issue_id: formData.issue_id || '',
+                status: formData.status || 'Open',
+              };
+
+              // Wait for both update and refresh to complete
+              await commentService.updateComment(newEntry, this.getWorkingEditor());
+              if (onUpdate) {
+                await onUpdate();
+              }
+
+              panel.dispose();
+            } catch (error) {
+              window.showErrorMessage(`Failed to update comment: ${error}`);
+              console.error('Error updating comment:', error);
+              panel.dispose();
+            }
             break;
 
           case 'cancel':
@@ -117,7 +134,7 @@ export class WebViewComponent {
                   panel.dispose();
                 } else {
                   // on cancel: load webview again
-                  this.editComment(commentService, selections, data);
+                  this.editComment(commentService, selections, data, onUpdate);
                 }
               });
             break;
@@ -134,7 +151,7 @@ export class WebViewComponent {
     });
   }
 
-  addComment(commentService: ReviewCommentService) {
+  addComment(commentService: ReviewCommentService, onAdd?: () => Promise<void> | void) {
     // highlight selected lines
     const editor = this.getWorkingEditor();
     const decoration = colorizedBackgroundDecoration(getSelectionRanges(editor), editor, this.highlightDecorationColor);
@@ -143,17 +160,26 @@ export class WebViewComponent {
 
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
-      (message) => {
+      async (message) => {
         switch (message.command) {
           case 'submit':
-            commentService.addComment(createCommentFromObject(message.text), this.getWorkingEditor());
+            try {
+              await commentService.addComment(createCommentFromObject(message.text), this.getWorkingEditor());
+              if (onAdd) {
+                await onAdd();
+              }
+            } catch (error) {
+              window.showErrorMessage(`Failed to add comment: ${error}`);
+              console.error('Error adding comment:', error);
+            } finally {
+              panel.dispose();
+            }
             break;
 
           case 'cancel':
+            panel.dispose();
             break;
         }
-
-        panel.dispose();
       },
       undefined,
       this.context.subscriptions,

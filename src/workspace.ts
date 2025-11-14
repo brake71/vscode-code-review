@@ -266,7 +266,10 @@ export class WorkspaceContext {
               if (csvRef) {
                 const ranges: Range[] = rangesFromStringDefinition(csvRef.lines);
                 textEditor.revealRange(ranges[0]);
-                this.webview.editComment(this.commentService, ranges, csvRef);
+                this.webview.editComment(this.commentService, ranges, csvRef, async () => {
+                  await this.commentsProvider.refresh();
+                  this.updateDecorations();
+                });
               }
             });
           },
@@ -293,9 +296,10 @@ export class WorkspaceContext {
         return;
       }
 
-      this.webview.addComment(this.commentService);
-      await this.commentsProvider.refresh();
-      this.updateDecorations();
+      this.webview.addComment(this.commentService, async () => {
+        await this.commentsProvider.refresh();
+        this.updateDecorations();
+      });
     });
 
     this.filterByCommitEnableRegistration = commands.registerCommand('codeReview.filterByCommitEnable', async () => {
