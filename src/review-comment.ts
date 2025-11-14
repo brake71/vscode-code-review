@@ -58,9 +58,9 @@ export class ReviewCommentService {
     }
 
     if (updateRowIndex < 0) {
-      const errorMessage = `Update failed. Cannot find line definition '${comment.lines}' for '${comment.filename}' in '${this.reviewFile}'.`;
-      window.showErrorMessage(errorMessage);
-      throw new Error(errorMessage);
+      throw new Error(
+        `Update failed. Cannot find line definition '${comment.lines}' for '${comment.filename}' in '${this.reviewFile}'.`,
+      );
     }
 
     rows[updateRowIndex] = CsvStructure.formatAsCsvLine(this.finalizeComment(comment));

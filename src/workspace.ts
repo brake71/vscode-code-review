@@ -296,9 +296,10 @@ export class WorkspaceContext {
         return;
       }
 
-      this.webview.addComment(this.commentService);
-      await this.commentsProvider.refresh();
-      this.updateDecorations();
+      this.webview.addComment(this.commentService, async () => {
+        await this.commentsProvider.refresh();
+        this.updateDecorations();
+      });
     });
 
     this.filterByCommitEnableRegistration = commands.registerCommand('codeReview.filterByCommitEnable', async () => {

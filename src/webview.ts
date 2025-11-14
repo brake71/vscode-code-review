@@ -151,7 +151,7 @@ export class WebViewComponent {
     });
   }
 
-  addComment(commentService: ReviewCommentService) {
+  addComment(commentService: ReviewCommentService, onAdd?: () => Promise<void> | void) {
     // highlight selected lines
     const editor = this.getWorkingEditor();
     const decoration = colorizedBackgroundDecoration(getSelectionRanges(editor), editor, this.highlightDecorationColor);
@@ -160,17 +160,26 @@ export class WebViewComponent {
 
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
-      (message) => {
+      async (message) => {
         switch (message.command) {
           case 'submit':
-            commentService.addComment(createCommentFromObject(message.text), this.getWorkingEditor());
+            try {
+              await commentService.addComment(createCommentFromObject(message.text), this.getWorkingEditor());
+              if (onAdd) {
+                await onAdd();
+              }
+            } catch (error) {
+              window.showErrorMessage(`Failed to add comment: ${error}`);
+              console.error('Error adding comment:', error);
+            } finally {
+              panel.dispose();
+            }
             break;
 
           case 'cancel':
+            panel.dispose();
             break;
         }
-
-        panel.dispose();
       },
       undefined,
       this.context.subscriptions,
