@@ -367,21 +367,27 @@ export class CodeRabbitDBConnector {
 
     // Фильтрация "последний обзор"
     if (options.latestOnly && filtered.length > 0) {
-      const latest = filtered.reduce((prev, current) => {
-        const prevDate = new Date(prev.endedAt);
-        const currentDate = new Date(current.endedAt);
-
-        // Handle invalid dates in reduce
-        if (isNaN(currentDate.getTime())) {
-          return prev;
+      // First filter out reviews with invalid or missing endedAt
+      const validReviews = filtered.filter((review) => {
+        if (!review.endedAt) {
+          return false;
         }
-        if (isNaN(prevDate.getTime())) {
-          return current;
-        }
-
-        return currentDate > prevDate ? current : prev;
+        const reviewDate = new Date(review.endedAt);
+        return !isNaN(reviewDate.getTime());
       });
-      filtered = [latest];
+
+      // Only proceed with reduce if we have valid reviews
+      if (validReviews.length > 0) {
+        const latest = validReviews.reduce((prev, current) => {
+          const prevDate = new Date(prev.endedAt);
+          const currentDate = new Date(current.endedAt);
+          return currentDate > prevDate ? current : prev;
+        });
+        filtered = [latest];
+      } else {
+        // No valid dates found, return empty array
+        filtered = [];
+      }
     }
 
     return filtered;
