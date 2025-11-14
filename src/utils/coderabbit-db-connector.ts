@@ -82,7 +82,10 @@ export class CodeRabbitDBConnector {
     // Если workspaceRoot пустой или '.', используем process.cwd()
     const workspaceRootToUse = !this.workspaceRoot || this.workspaceRoot === '.' ? process.cwd() : this.workspaceRoot;
     const projectPathResolved = path.resolve(workspaceRootToUse);
-    const projectPathNormalized = projectPathResolved.toLowerCase().replace(/[\\/]+$/, '');
+    const projectPathNormalized = path
+      .normalize(projectPathResolved)
+      .toLowerCase()
+      .replace(/[\\/]+$/, '');
 
     // Ищем workspace по workspace.json
     const directories = fs.readdirSync(workspaceStoragePath);
@@ -126,17 +129,21 @@ export class CodeRabbitDBConnector {
         if (folderPath.startsWith('file:///')) {
           // Извлекаем путь из URI
           folderPath = folderPath.replace('file:///', '');
-          folderPath = folderPath.replace(/\//g, '\\');
           // Декодируем URL-кодирование
           try {
             folderPath = decodeURIComponent(folderPath);
           } catch {
             // Игнорируем ошибки декодирования
           }
+          // Нормализуем путь для текущей ОС
+          folderPath = path.normalize(folderPath);
         }
 
         const folderPathResolved = path.resolve(folderPath);
-        const folderPathNormalized = folderPathResolved.toLowerCase().replace(/[\\/]+$/, '');
+        const folderPathNormalized = path
+          .normalize(folderPathResolved)
+          .toLowerCase()
+          .replace(/[\\/]+$/, '');
 
         // Собираем отладочную информацию для первых 3 workspace
         if (workspacesWithJson <= 3) {
@@ -191,8 +198,9 @@ export class CodeRabbitDBConnector {
       // Initialize sql.js with locateFile to find the wasm file
       const SQL = await initSqlJs({
         locateFile: (file: string) => {
-          // In production, the wasm file is in node_modules/sql.js/dist/
-          return path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', file);
+          // __dirname is out/utils, so we need to go up two levels to reach repository root
+          // then navigate to node_modules/sql.js/dist/
+          return path.join(__dirname, '..', '..', 'node_modules', 'sql.js', 'dist', file);
         },
       });
 
@@ -309,6 +317,20 @@ export class CodeRabbitDBConnector {
    * Фильтрация обзоров по критериям
    */
   private filterReviews(reviews: CodeRabbitReview[], options: CodeRabbitImportOptions): CodeRabbitReview[] {
+    // Validate and parse option dates at the top
+    const startDate = options.startDate ? new Date(options.startDate) : null;
+    const endDate = options.endDate ? new Date(options.endDate) : null;
+
+    if (startDate && isNaN(startDate.getTime())) {
+      throw new Error(
+        `Invalid start date provided: "${options.startDate}". Please provide a valid ISO 8601 date string.`,
+      );
+    }
+
+    if (endDate && isNaN(endDate.getTime())) {
+      throw new Error(`Invalid end date provided: "${options.endDate}". Please provide a valid ISO 8601 date string.`);
+    }
+
     let filtered = reviews;
 
     // Фильтрация по ветке
@@ -317,21 +339,48 @@ export class CodeRabbitDBConnector {
     }
 
     // Фильтрация по диапазону дат
-    if (options.startDate) {
-      const startDate = new Date(options.startDate);
-      filtered = filtered.filter((review) => new Date(review.endedAt) >= startDate);
+    if (startDate) {
+      filtered = filtered.filter((review) => {
+        if (!review.endedAt) {
+          return false; // Skip reviews without endedAt
+        }
+        const reviewDate = new Date(review.endedAt);
+        if (isNaN(reviewDate.getTime())) {
+          return false; // Skip reviews with invalid endedAt
+        }
+        return reviewDate >= startDate;
+      });
     }
 
-    if (options.endDate) {
-      const endDate = new Date(options.endDate);
-      filtered = filtered.filter((review) => new Date(review.endedAt) <= endDate);
+    if (endDate) {
+      filtered = filtered.filter((review) => {
+        if (!review.endedAt) {
+          return false; // Skip reviews without endedAt
+        }
+        const reviewDate = new Date(review.endedAt);
+        if (isNaN(reviewDate.getTime())) {
+          return false; // Skip reviews with invalid endedAt
+        }
+        return reviewDate <= endDate;
+      });
     }
 
     // Фильтрация "последний обзор"
     if (options.latestOnly && filtered.length > 0) {
-      const latest = filtered.reduce((prev, current) =>
-        new Date(current.endedAt) > new Date(prev.endedAt) ? current : prev,
-      );
+      const latest = filtered.reduce((prev, current) => {
+        const prevDate = new Date(prev.endedAt);
+        const currentDate = new Date(current.endedAt);
+
+        // Handle invalid dates in reduce
+        if (isNaN(currentDate.getTime())) {
+          return prev;
+        }
+        if (isNaN(prevDate.getTime())) {
+          return current;
+        }
+
+        return currentDate > prevDate ? current : prev;
+      });
       filtered = [latest];
     }
 
