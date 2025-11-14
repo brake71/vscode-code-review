@@ -117,6 +117,7 @@ export class WebViewComponent {
             } catch (error) {
               window.showErrorMessage(`Failed to update comment: ${error}`);
               console.error('Error updating comment:', error);
+              panel.dispose();
             }
             break;
 

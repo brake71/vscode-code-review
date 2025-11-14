@@ -27,7 +27,7 @@ export class ReviewCommentService {
     this.checkFileExists();
 
     if (!this.getSelectedLines(comment, editor)) {
-      return;
+      throw new Error('Failed to get selected lines');
     }
 
     comment.filename = standardizeFilename(this.workspaceRoot, editor!.document.fileName);
@@ -47,7 +47,7 @@ export class ReviewCommentService {
     const fallBackKey = comment.lines;
     // Refresh selected lines
     if (!this.getSelectedLines(comment, editor, true)) {
-      return;
+      throw new Error('Failed to get selected lines');
     }
 
     const rows = getCsvFileLinesAsArray(this.reviewFile);
@@ -58,10 +58,9 @@ export class ReviewCommentService {
     }
 
     if (updateRowIndex < 0) {
-      window.showErrorMessage(
-        `Update failed. Cannot find line definition '${comment.lines}' for '${comment.filename}' in '${this.reviewFile}'.`,
-      );
-      return;
+      const errorMessage = `Update failed. Cannot find line definition '${comment.lines}' for '${comment.filename}' in '${this.reviewFile}'.`;
+      window.showErrorMessage(errorMessage);
+      throw new Error(errorMessage);
     }
 
     rows[updateRowIndex] = CsvStructure.formatAsCsvLine(this.finalizeComment(comment));
