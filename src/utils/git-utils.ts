@@ -133,10 +133,18 @@ export function getBlameAuthor(workspaceRoot: string, filename: string, line: nu
       stdio: ['pipe', 'pipe', 'ignore'],
     });
 
-    // Parse the porcelain output to find the author line
-    // Format: "author <name>"
-    const authorMatch = blameOutput.match(/^author (.+)$/m);
-    const author = authorMatch && authorMatch[1] ? authorMatch[1].trim() : '';
+    // Parse the porcelain output to find the author-mail line
+    // Format: "author-mail <email@domain.com>"
+    const authorMailMatch = blameOutput.match(/^author-mail <(.+)>$/m);
+    let username = '';
+
+    if (authorMailMatch && authorMailMatch[1]) {
+      const email = authorMailMatch[1].trim();
+      // Extract username from email (part before @)
+      if (email && email !== 'not.committed.yet' && email.includes('@')) {
+        username = email.split('@')[0];
+      }
+    }
 
     // Cache the result
     if (!blameCache[cacheKey]) {
@@ -146,10 +154,10 @@ export function getBlameAuthor(workspaceRoot: string, filename: string, line: nu
         timestamp: Date.now(),
       };
     }
-    blameCache[cacheKey].authors.set(line, author);
+    blameCache[cacheKey].authors.set(line, username);
     blameCache[cacheKey].timestamp = Date.now();
 
-    return author;
+    return username;
   } catch (error) {
     // Cache empty result to avoid repeated failures
     if (!blameCache[cacheKey]) {
@@ -223,7 +231,7 @@ export function batchGetBlameInfo(
     const blameLines = blameOutput.split('\n');
     let currentLine = 1;
     let currentShaValue = '';
-    let currentAuthor = '';
+    let currentUsername = '';
 
     for (let i = 0; i < blameLines.length; i++) {
       const line = blameLines[i];
@@ -233,14 +241,24 @@ export function batchGetBlameInfo(
         const parts = line.split(' ');
         currentShaValue = parts[0];
         currentLine = parseInt(parts[2], 10);
-      } else if (line.startsWith('author ')) {
-        currentAuthor = line.substring(7).trim();
+      } else if (line.startsWith('author-mail <')) {
+        // Extract email from "author-mail <email@domain.com>"
+        const emailMatch = line.match(/^author-mail <(.+)>$/);
+        if (emailMatch && emailMatch[1]) {
+          const email = emailMatch[1].trim();
+          // Extract username from email (part before @)
+          if (email && email !== 'not.committed.yet' && email.includes('@')) {
+            currentUsername = email.split('@')[0];
+          } else {
+            currentUsername = '';
+          }
+        }
       } else if (line.startsWith('\t')) {
         // This is the actual code line, we have all info now
         if (uncachedLines.includes(currentLine)) {
           result.set(currentLine, {
             sha: currentShaValue || currentSha,
-            author: currentAuthor,
+            author: currentUsername,
           });
 
           // Cache the result
@@ -252,7 +270,7 @@ export function batchGetBlameInfo(
             };
           }
           blameCache[cacheKey].shas.set(currentLine, currentShaValue || currentSha);
-          blameCache[cacheKey].authors.set(currentLine, currentAuthor);
+          blameCache[cacheKey].authors.set(currentLine, currentUsername);
           blameCache[cacheKey].timestamp = Date.now();
         }
         currentLine++;

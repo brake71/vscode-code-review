@@ -1,7 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import * as crypto from 'crypto';
-import Database from 'better-sqlite3';
+import { TextDecoder } from 'util';
+import initSqlJs from 'sql.js';
+import type { Database } from 'sql.js';
 
 /**
  * Интерфейс замечания CodeRabbit
@@ -77,66 +78,101 @@ export class CodeRabbitDBConnector {
       );
     }
 
-    // Вычислить хеш пути workspace
-    const workspaceHash = this.computeWorkspaceHash(this.workspaceRoot);
-    const expectedPath = path.join(workspaceStoragePath, workspaceHash, 'state.vscdb');
+    // Нормализуем путь к проекту для сравнения
+    // Если workspaceRoot пустой или '.', используем process.cwd()
+    const workspaceRootToUse = !this.workspaceRoot || this.workspaceRoot === '.' ? process.cwd() : this.workspaceRoot;
+    const projectPathResolved = path.resolve(workspaceRootToUse);
+    const projectPathNormalized = projectPathResolved.toLowerCase().replace(/[\\/]+$/, '');
 
-    // Проверить ожидаемый путь
-    if (fs.existsSync(expectedPath) && this.hasCodeRabbitData(expectedPath)) {
-      return expectedPath;
-    }
-
-    // Fallback: поиск по всем директориям
+    // Ищем workspace по workspace.json
     const directories = fs.readdirSync(workspaceStoragePath);
+
+    let checkedWorkspaces = 0;
+    let workspacesWithJson = 0;
+    const debugInfo: string[] = [];
+
     for (const dir of directories) {
-      const dbPath = path.join(workspaceStoragePath, dir, 'state.vscdb');
-      if (fs.existsSync(dbPath) && this.hasCodeRabbitData(dbPath)) {
-        return dbPath;
+      checkedWorkspaces++;
+      const wsDir = path.join(workspaceStoragePath, dir);
+
+      // Проверяем, что это директория
+      try {
+        if (!fs.statSync(wsDir).isDirectory()) {
+          continue;
+        }
+      } catch {
+        continue;
+      }
+
+      const workspaceJsonPath = path.join(wsDir, 'workspace.json');
+
+      if (!fs.existsSync(workspaceJsonPath)) {
+        continue;
+      }
+
+      workspacesWithJson++;
+
+      try {
+        const workspaceJson = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
+        let folderPath = workspaceJson.folder;
+
+        if (!folderPath) {
+          continue;
+        }
+
+        const originalPath = folderPath;
+
+        // Обрабатываем формат URI (file:///e%3A/...) или обычный путь
+        if (folderPath.startsWith('file:///')) {
+          // Извлекаем путь из URI
+          folderPath = folderPath.replace('file:///', '');
+          folderPath = folderPath.replace(/\//g, '\\');
+          // Декодируем URL-кодирование
+          try {
+            folderPath = decodeURIComponent(folderPath);
+          } catch {
+            // Игнорируем ошибки декодирования
+          }
+        }
+
+        const folderPathResolved = path.resolve(folderPath);
+        const folderPathNormalized = folderPathResolved.toLowerCase().replace(/[\\/]+$/, '');
+
+        // Собираем отладочную информацию для первых 3 workspace
+        if (workspacesWithJson <= 3) {
+          debugInfo.push(`\nWorkspace ${workspacesWithJson} (${dir}):`);
+          debugInfo.push(`  Original: ${originalPath}`);
+          debugInfo.push(`  Decoded: ${folderPath}`);
+          debugInfo.push(`  Normalized: ${folderPathNormalized}`);
+          debugInfo.push(`  Match: ${folderPathNormalized === projectPathNormalized}`);
+        }
+
+        if (folderPathNormalized === projectPathNormalized) {
+          const dbPath = path.join(wsDir, 'state.vscdb');
+          const dbExists = fs.existsSync(dbPath);
+
+          if (dbExists) {
+            // Return the database path if it exists
+            // Data validation will happen in extractReviews() with better error handling
+            return dbPath;
+          } else {
+            debugInfo.push(`\nFound matching workspace but database file does not exist at: ${dbPath}`);
+          }
+        }
+      } catch (error) {
+        // Продолжаем поиск при ошибках чтения workspace.json
+        continue;
       }
     }
 
     throw new Error(
       'CodeRabbit database not found in workspace storage. ' +
         'Please ensure CodeRabbit extension is installed in Cursor IDE and has performed at least one code review in this workspace. ' +
-        `Searched in: ${workspaceStoragePath}`,
+        `\n\nSearched in: ${workspaceStoragePath}` +
+        `\nLooking for workspace: ${projectPathNormalized}` +
+        `\nChecked ${checkedWorkspaces} directories, found ${workspacesWithJson} with workspace.json` +
+        (debugInfo.length > 0 ? `\n\nDebug info:${debugInfo.join('\n')}` : ''),
     );
-  }
-
-  /**
-   * Вычислить хеш пути workspace (аналогично Cursor IDE)
-   */
-  private computeWorkspaceHash(workspacePath: string): string {
-    const normalizedPath = workspacePath.toLowerCase().replace(/\\/g, '/');
-    return crypto.createHash('md5').update(normalizedPath).digest('hex');
-  }
-
-  /**
-   * Проверить наличие данных CodeRabbit в базе
-   */
-  private hasCodeRabbitData(dbPath: string): boolean {
-    let db: Database.Database | undefined;
-    try {
-      // Open in readonly mode with fileMustExist for better performance
-      db = new Database(dbPath, { readonly: true, fileMustExist: true });
-
-      // Use prepared statement for consistency
-      const stmt = db.prepare('SELECT key FROM ItemTable WHERE key = ?');
-      const row = stmt.get('coderabbit.coderabbit-vscode');
-
-      return !!row;
-    } catch (error) {
-      // Silently fail - this is used for discovery
-      return false;
-    } finally {
-      // Always close database connection to free resources
-      if (db) {
-        try {
-          db.close();
-        } catch {
-          // Ignore close errors during discovery
-        }
-      }
-    }
   }
 
   /**
@@ -149,29 +185,46 @@ export class CodeRabbitDBConnector {
       );
     }
 
-    let db: Database.Database | undefined;
+    let db: Database | undefined;
 
     try {
-      // Open database in readonly mode for better performance
-      db = new Database(dbPath, { readonly: true, fileMustExist: true });
+      // Initialize sql.js with locateFile to find the wasm file
+      const SQL = await initSqlJs({
+        locateFile: (file: string) => {
+          // In production, the wasm file is in node_modules/sql.js/dist/
+          return path.join(__dirname, '..', 'node_modules', 'sql.js', 'dist', file);
+        },
+      });
 
-      // Prepare statement for reuse (more efficient)
-      const stmt = db.prepare('SELECT value FROM ItemTable WHERE key = ?');
+      // Read database file
+      const buffer = fs.readFileSync(dbPath);
+      db = new SQL.Database(buffer);
 
-      // Execute prepared statement
-      const row = stmt.get('coderabbit.coderabbit-vscode') as { value: Buffer } | undefined;
+      // Execute query
+      const result = db.exec('SELECT value FROM ItemTable WHERE key = ?', ['coderabbit.coderabbit-vscode']);
 
-      if (!row) {
+      if (!result || result.length === 0 || !result[0].values || result[0].values.length === 0) {
         throw new Error(
           'CodeRabbit data not found in database. ' +
             'Please ensure CodeRabbit extension has performed at least one code review in this workspace.',
         );
       }
 
+      // Get the value (first column of first row)
+      const valueBuffer = result[0].values[0][0];
+
       // Распарсить JSON
       let data: any;
       try {
-        data = JSON.parse(row.value.toString());
+        // Convert buffer to string
+        const jsonString =
+          typeof valueBuffer === 'string'
+            ? valueBuffer
+            : Buffer.isBuffer(valueBuffer)
+            ? valueBuffer.toString()
+            : new TextDecoder().decode(valueBuffer as Uint8Array);
+
+        data = JSON.parse(jsonString);
       } catch (error) {
         throw new Error(
           'Failed to parse CodeRabbit data from database. The database may be corrupted. ' +
@@ -180,6 +233,7 @@ export class CodeRabbitDBConnector {
       }
 
       // Найти ключи вида *-reviews
+      // Keys have format: "path-branch-reviews" or "path-branch/subbranch-reviews"
       const reviewKeys = Object.keys(data).filter((key) => key.endsWith('-reviews'));
 
       if (reviewKeys.length === 0) {
@@ -193,7 +247,27 @@ export class CodeRabbitDBConnector {
 
       // Извлечь массивы обзоров для каждой ветки
       for (const key of reviewKeys) {
-        const branchName = key.replace('-reviews', '');
+        // Extract branch name from key
+        // Key format: "path-branch-reviews" or "path-branch/subbranch-reviews"
+        // We need to extract just the branch part after the last path separator
+        const keyWithoutReviews = key.replace('-reviews', '');
+
+        // Try to extract branch name by removing workspace path prefix
+        let branchName = keyWithoutReviews;
+
+        // Find the last occurrence of workspace root in the key
+        const normalizedWorkspaceRoot = this.workspaceRoot.toLowerCase().replace(/[\\/]/g, '\\');
+        const keyLower = keyWithoutReviews.toLowerCase();
+
+        if (keyLower.includes(normalizedWorkspaceRoot)) {
+          // Remove workspace path and the separator
+          branchName = keyWithoutReviews.substring(normalizedWorkspaceRoot.length);
+          // Remove leading separator if present
+          if (branchName.startsWith('-') || branchName.startsWith('\\') || branchName.startsWith('/')) {
+            branchName = branchName.substring(1);
+          }
+        }
+
         const reviews = data[key];
 
         if (Array.isArray(reviews)) {

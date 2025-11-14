@@ -2,7 +2,7 @@
   "name": "vscode-code-review",
   "displayName": "Code Review",
   "description": "Create expert reviews / code reviews for a workspace that can be exported as a document for handing over to customers",
-  "version": "1.34.2",
+  "version": "1.34.3",
   "publisher": "d-koppenhagen",
   "author": "Danny Koppenhagen <mail@d-koppenhagen.de> (https://k9n.dev)",
   "homepage": "https://github.com/d-koppenhagen/vscode-code-review",
@@ -623,6 +623,7 @@
     "@types/js-base64": "^3.3.1",
     "@types/mocha": "^9.1.1",
     "@types/node": "16.x",
+    "@types/sql.js": "^1.4.9",
     "@types/vscode": "^1.59.0",
     "@typescript-eslint/eslint-plugin": "^5.21.0",
     "@typescript-eslint/parser": "^5.21.0",
@@ -652,11 +653,11 @@
   },
   "dependencies": {
     "@fast-csv/parse": "^4.3.6",
-    "better-sqlite3": "^9.6.0",
     "common-tags": "^1.8.2",
     "git-commit-id": "^2.0.1",
     "handlebars": "^4.7.7",
     "js-base64": "^3.7.2",
+    "sql.js": "^1.13.0",
     "uuid": "^8.3.2"
   }
 }

@@ -19,7 +19,7 @@ const config = {
   devtool: 'nosources-source-map',
   externals: {
     vscode: 'commonjs vscode', // the vscode-module is created on-the-fly and must be excluded. Add other modules that cannot be webpack'ed, 📖 -> https://webpack.js.org/configuration/externals/
-    'better-sqlite3': 'commonjs better-sqlite3', // native module that cannot be bundled
+    'sql.js': 'commonjs sql.js', // sql.js needs to be external to load wasm properly
     // modules added here also need to be added in the .vsceignore file
   },
   resolve: {

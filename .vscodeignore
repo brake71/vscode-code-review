@@ -2,7 +2,7 @@
 .vscode-test/**
 out/**
 node_modules/**
-!node_modules/better-sqlite3/**
+!node_modules/sql.js/**
 src/**
 .gitignore
 .yarnrc

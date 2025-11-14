@@ -462,6 +462,7 @@ export class CodeRabbitImportFactory {
 
   /**
    * Extract category from indicator types
+   * Converts snake_case to Title Case (e.g., potential_issue -> Potential Issue)
    * @param indicatorTypes Array of indicator types
    * @returns Category string
    */
@@ -470,7 +471,19 @@ export class CodeRabbitImportFactory {
       return 'Unknown';
     }
 
-    return indicatorTypes[0];
+    const firstType = indicatorTypes[0];
+    if (!firstType) {
+      return 'Unknown';
+    }
+
+    // Convert snake_case to Title Case
+    // potential_issue -> Potential Issue
+    // nitpick -> Nitpick
+    // refactor_suggestion -> Refactor Suggestion
+    const parts = firstType.split('_');
+    const category = parts.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+
+    return category;
   }
 
   /**
