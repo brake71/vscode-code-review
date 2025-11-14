@@ -62,14 +62,39 @@ export class CodeRabbitDBConnector {
    * Автоматический поиск workspace storage для текущего проекта
    */
   public async findWorkspacePath(): Promise<string> {
-    const appDataPath = process.env.APPDATA || process.env.HOME;
-    if (!appDataPath) {
+    // Determine the base config directory based on platform
+    let baseConfigPath: string;
+    const platform = process.platform;
+    const home = process.env.HOME;
+
+    if (platform === 'win32') {
+      // Windows: use APPDATA
+      baseConfigPath = process.env.APPDATA || '';
+      if (!baseConfigPath && home) {
+        // Fallback for Windows if APPDATA is missing
+        baseConfigPath = path.join(home, 'AppData', 'Roaming');
+      }
+    } else if (platform === 'darwin') {
+      // macOS: use ~/Library/Application Support
+      if (!home) {
+        throw new Error('Cannot determine application data directory. HOME environment variable is not set.');
+      }
+      baseConfigPath = path.join(home, 'Library', 'Application Support');
+    } else {
+      // Linux and other Unix-like systems: use XDG_CONFIG_HOME or ~/.config
+      if (!home) {
+        throw new Error('Cannot determine application data directory. HOME environment variable is not set.');
+      }
+      baseConfigPath = process.env.XDG_CONFIG_HOME || path.join(home, '.config');
+    }
+
+    if (!baseConfigPath) {
       throw new Error(
         'Cannot determine application data directory. Please ensure APPDATA (Windows) or HOME (Unix) environment variable is set.',
       );
     }
 
-    const workspaceStoragePath = path.join(appDataPath, 'Cursor', 'User', 'workspaceStorage');
+    const workspaceStoragePath = path.join(baseConfigPath, 'Cursor', 'User', 'workspaceStorage');
 
     if (!fs.existsSync(workspaceStoragePath)) {
       throw new Error(
@@ -198,8 +223,28 @@ export class CodeRabbitDBConnector {
       // Initialize sql.js with locateFile to find the wasm file
       const SQL = await initSqlJs({
         locateFile: (file: string) => {
-          // __dirname is out/utils, so we need to go up two levels to reach repository root
-          // then navigate to node_modules/sql.js/dist/
+          // In bundled extension, WASM file is copied to dist folder alongside extension.js
+          // In development, it's in node_modules/sql.js/dist/
+
+          // First try: look in the same directory as this code (works for bundled extension)
+          const bundledPath = path.join(__dirname, file);
+          if (fs.existsSync(bundledPath)) {
+            return bundledPath;
+          }
+
+          // Second try: use require.resolve to find sql.js module (works in development)
+          try {
+            const sqlJsPath = require.resolve('sql.js');
+            const distPath = path.dirname(sqlJsPath);
+            const devPath = path.join(distPath, file);
+            if (fs.existsSync(devPath)) {
+              return devPath;
+            }
+          } catch (error) {
+            // Continue to fallback
+          }
+
+          // Final fallback: relative path from out directory
           return path.join(__dirname, '..', '..', 'node_modules', 'sql.js', 'dist', file);
         },
       });

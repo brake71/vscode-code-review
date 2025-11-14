@@ -32,7 +32,17 @@ const config = {
   },
   plugins: [
     new CopyPlugin({
-      patterns: ['src/template.default.hbs', 'src/template-markdown.default.hbs', 'src/webview.html', 'images/icons'],
+      patterns: [
+        'src/template.default.hbs',
+        'src/template-markdown.default.hbs',
+        'src/webview.html',
+        'images/icons',
+        // Copy sql.js WASM file to dist
+        {
+          from: 'node_modules/sql.js/dist/sql-wasm.wasm',
+          to: 'sql-wasm.wasm',
+        },
+      ],
     }),
   ],
   module: {
