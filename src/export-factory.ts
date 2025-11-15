@@ -118,9 +118,13 @@ export class ExportFactory {
     filterStatuses?: string[],
     filterAssignee?: string | null,
   ): boolean {
+    // Normalize both filenames for comparison to handle mixed path separators
+    const normalizedEntryFilename = entry.filename.replace(/\\/g, '/');
+    const normalizedCurrentFilename = this.currentFilename ? this.currentFilename.replace(/\\/g, '/') : null;
+
     const baseEligibility =
       (this.currentCommitId === null || entry.sha === this.currentCommitId) &&
-      (this.currentFilename === null || entry.filename === this.currentFilename) &&
+      (normalizedCurrentFilename === null || normalizedEntryFilename === normalizedCurrentFilename) &&
       (!this.filterByPriority || entry.priority !== 1); // prio value 1 = green traffic light
 
     // Apply author filter if specified
@@ -574,12 +578,22 @@ export class ExportFactory {
       // sort when multiple line selection are related to one comment
       // e.g. '23:4-45:2|12:3-15:6|18:1-19:40' becomes: '12:3-15:6|18:1-19:40|23:4-45:2'
       row.lines = splitStringDefinition(row.lines).sort(sortLineSelections).join('|');
-      const match = reviewExportData.find((fileRef) => fileRef.group === row[groupAttribute].toString());
+
+      // Normalize the group value for comparison (especially for filename grouping)
+      const groupValue = row[groupAttribute].toString();
+      const normalizedGroupValue = groupValue.replace(/\\/g, '/');
+
+      const match = reviewExportData.find((fileRef) => {
+        const normalizedFileGroup = fileRef.group.replace(/\\/g, '/');
+        return normalizedFileGroup === normalizedGroupValue;
+      });
+
       if (match) {
         match.lines.push(row);
       } else {
+        // Store with normalized path for consistency
         reviewExportData.push({
-          group: row[groupAttribute].toString(),
+          group: normalizedGroupValue,
           lines: [row],
         });
       }

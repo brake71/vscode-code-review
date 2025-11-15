@@ -128,15 +128,22 @@ export class WorkspaceContext {
     this.decorations.clear(editor);
 
     this.exportFactory.getFilesContainingComments().then((fileEntries) => {
-      const matchingFile = fileEntries.find((file) => editor.document.fileName.endsWith(file.label));
+      // Normalize both paths for comparison
+      const normalizedEditorPath = editor.document.fileName.replace(/\\/g, '/');
+      const matchingFile = fileEntries.find((file) => {
+        const normalizedFileLabel = file.label.replace(/\\/g, '/');
+        return normalizedEditorPath.endsWith(normalizedFileLabel);
+      });
       if (matchingFile) {
         // iterate over all comments associated with this file
-        this.exportFactory.getComments(matchingFile).then((comments) => {
+        this.exportFactory.getComments(matchingFile).then((commentEntries) => {
           // Filter out comments with hidden statuses
           const hiddenStatuses = (workspace.getConfiguration().get('code-review.hiddenInlineStatuses') as string[]) || [
             'Closed',
           ];
-          const visibleComments = comments[0].data.lines.filter((comment: CsvEntry) => {
+
+          // matchingFile.data.lines contains all CSV entries for this file
+          const visibleComments = matchingFile.data.lines.filter((comment: CsvEntry) => {
             // If comment has no status or empty status, display it
             if (!comment.status || comment.status.trim() === '') {
               return true;
@@ -148,7 +155,6 @@ export class WorkspaceContext {
             return !isHidden;
           });
 
-          // comments[0] as we only need a single comment related to a line to identify the place where to put it
           this.decorations.underlineDecoration(visibleComments, editor);
           this.decorations.commentIconDecoration(visibleComments, editor);
         });
