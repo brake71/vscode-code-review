@@ -156,7 +156,9 @@ export class CsvStructure {
       uuidValidate(comment['id'] ?? '');
 
     if (isValid && workspaceRoot) {
-      const filename = path.join(workspaceRoot, comment['filename']);
+      // Normalize path separators before joining to handle both forward and backward slashes
+      const normalizedFilename = comment['filename'].replace(/\\/g, '/');
+      const filename = path.join(workspaceRoot, normalizedFilename);
       isValid &&= fs.existsSync(filename);
     }
 

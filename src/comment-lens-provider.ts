@@ -53,8 +53,11 @@ export class CommentLensProvider implements CodeLensProvider {
   public provideCodeLenses(document: TextDocument, token: CancellationToken): CodeLens[] | Thenable<CodeLens[]> {
     return this.exportFactory.getFilesContainingComments().then((filesWithComments) => {
       const codeLenses: CodeLens[] = [];
+      // Normalize document path for comparison
+      const normalizedDocPath = document.fileName.replace(/\\/g, '/');
       filesWithComments.forEach((el) => {
-        if (document.fileName.endsWith(el.data.group)) {
+        const normalizedGroup = el.data.group.replace(/\\/g, '/');
+        if (normalizedDocPath.endsWith(normalizedGroup)) {
           el.data.lines.forEach((csvEntry) => {
             // Filter out comments with hidden statuses
             if (!this.shouldDisplayInline(csvEntry)) {

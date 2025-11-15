@@ -5,6 +5,7 @@ import { CodeRabbitDBConnector, CodeRabbitComment, CodeRabbitImportOptions } fro
 import { CSVMerger } from './utils/csv-merger';
 import { ProgressManager, CodeRabbitImportStats } from './utils/progress-manager';
 import { getCurrentCommitSha, getCommitShaForFile, getBlameAuthor, batchGetBlameInfo } from './utils/git-utils';
+import { normalizePathSeparators } from './utils/workspace-util';
 
 /**
  * Factory class for importing code review comments from CodeRabbit database
@@ -302,11 +303,17 @@ export class CodeRabbitImportFactory {
             // Format lines
             const lines = `${comment.startLine}:0-${comment.endLine}:0`;
 
+            // Normalize filename and ensure it starts with /
+            let normalizedFilename = normalizePathSeparators(comment.filename);
+            if (!normalizedFilename.startsWith('/')) {
+              normalizedFilename = '/' + normalizedFilename;
+            }
+
             // Create CSV entry
             const csvEntry: CsvEntry = {
               id: comment.id,
               sha,
-              filename: comment.filename,
+              filename: normalizedFilename,
               url,
               lines,
               title,
@@ -377,11 +384,17 @@ export class CodeRabbitImportFactory {
             // Format lines
             const lines = `${comment.startLine}:0-${comment.endLine}:0`;
 
+            // Normalize filename and ensure it starts with /
+            let normalizedFilename = normalizePathSeparators(comment.filename);
+            if (!normalizedFilename.startsWith('/')) {
+              normalizedFilename = '/' + normalizedFilename;
+            }
+
             // Create CSV entry
             const csvEntry: CsvEntry = {
               id: comment.id,
               sha,
-              filename: comment.filename,
+              filename: normalizedFilename,
               url,
               lines,
               title,
