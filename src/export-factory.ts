@@ -98,6 +98,7 @@ export class ExportFactory {
   private currentCommitId: string | null = null;
   private filterByFilename: boolean = false;
   private currentFilename: string | null = null;
+  private lastActiveFileName: string | null = null; // Track last active text editor file
   private filterByPriority: boolean = false;
 
   // Cache properties
@@ -118,9 +119,13 @@ export class ExportFactory {
     filterStatuses?: string[],
     filterAssignee?: string | null,
   ): boolean {
+    // Normalize both filenames for comparison to handle mixed path separators
+    const normalizedEntryFilename = entry.filename.replace(/\\/g, '/');
+    const normalizedCurrentFilename = this.currentFilename ? this.currentFilename.replace(/\\/g, '/') : null;
+
     const baseEligibility =
       (this.currentCommitId === null || entry.sha === this.currentCommitId) &&
-      (this.currentFilename === null || entry.filename === this.currentFilename) &&
+      (normalizedCurrentFilename === null || normalizedEntryFilename === normalizedCurrentFilename) &&
       (!this.filterByPriority || entry.priority !== 1); // prio value 1 = green traffic light
 
     // Apply author filter if specified
@@ -386,6 +391,24 @@ export class ExportFactory {
 
     this.filterByPriority = workspace.getConfiguration().get('code-review.filterCommentsByPriority') as boolean;
     this.setFilterByPriority(this.filterByPriority, true);
+
+    // Track last active text editor to handle webview case
+    this.updateLastActiveFile();
+    context.subscriptions.push(
+      window.onDidChangeActiveTextEditor((editor) => {
+        this.updateLastActiveFile();
+      }),
+    );
+  }
+
+  /**
+   * Update last active file name from active text editor
+   */
+  private updateLastActiveFile(): void {
+    const editor = window.activeTextEditor;
+    if (editor && editor.document.uri.scheme === 'file') {
+      this.lastActiveFileName = editor.document.fileName;
+    }
   }
 
   get absoluteFilePath(): string {
@@ -574,12 +597,22 @@ export class ExportFactory {
       // sort when multiple line selection are related to one comment
       // e.g. '23:4-45:2|12:3-15:6|18:1-19:40' becomes: '12:3-15:6|18:1-19:40|23:4-45:2'
       row.lines = splitStringDefinition(row.lines).sort(sortLineSelections).join('|');
-      const match = reviewExportData.find((fileRef) => fileRef.group === row[groupAttribute].toString());
+
+      // Normalize the group value for comparison (especially for filename grouping)
+      const groupValue = row[groupAttribute].toString();
+      const normalizedGroupValue = groupValue.replace(/\\/g, '/');
+
+      const match = reviewExportData.find((fileRef) => {
+        const normalizedFileGroup = fileRef.group.replace(/\\/g, '/');
+        return normalizedFileGroup === normalizedGroupValue;
+      });
+
       if (match) {
         match.lines.push(row);
       } else {
+        // Store with normalized path for consistency
         reviewExportData.push({
-          group: row[groupAttribute].toString(),
+          group: normalizedGroupValue,
           lines: [row],
         });
       }
@@ -687,7 +720,8 @@ export class ExportFactory {
     let changedFile = false;
 
     if (this.filterByFilename) {
-      let filename = window.activeTextEditor?.document.fileName;
+      // Try to get filename from active editor, fallback to last active file
+      let filename = window.activeTextEditor?.document.fileName || this.lastActiveFileName;
       if (filename) {
         filename = standardizeFilename(this.workspaceRoot, filename);
         if (this.currentFilename !== filename) {

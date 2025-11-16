@@ -27,6 +27,7 @@ import {
   splitStringDefinition,
   getBackupFilename,
   isProperSubpathOf,
+  normalizePathSeparators,
 } from '../../utils/workspace-util';
 import { createCommentFromObject, CsvEntry, CsvStructure } from '../../model';
 import { cleanCsvStorage, getCsvFileHeader } from '../../utils/storage-utils';
@@ -554,8 +555,39 @@ suite('Workspace Utils', () => {
   });
 
   suite('standardizeFilename', () => {
-    test('should remove the workspace-part from the filename', () => {
+    test('should remove the workspace-part from the filename and ensure leading slash', () => {
       assert.strictEqual(standardizeFilename('/foo/bar', '/foo/bar/baz.txt'), '/baz.txt');
+    });
+
+    test('should normalize path separators to forward slashes and ensure leading slash', () => {
+      assert.strictEqual(standardizeFilename('C:\\workspace', 'C:\\workspace\\src\\file.ts'), '/src/file.ts');
+      assert.strictEqual(standardizeFilename('/workspace', '/workspace\\src\\file.ts'), '/src/file.ts');
+    });
+
+    test('should add leading slash if missing', () => {
+      // When workspace root doesn't have trailing separator
+      assert.strictEqual(standardizeFilename('C:\\workspace', 'C:\\workspacesrc\\file.ts'), '/src/file.ts');
+    });
+  });
+
+  suite('normalizePathSeparators', () => {
+    test('should convert backslashes to forward slashes', () => {
+      assert.strictEqual(normalizePathSeparators('\\src\\file.ts'), '/src/file.ts');
+      assert.strictEqual(normalizePathSeparators('src\\utils\\helper.ts'), 'src/utils/helper.ts');
+    });
+
+    test('should leave forward slashes unchanged', () => {
+      assert.strictEqual(normalizePathSeparators('/src/file.ts'), '/src/file.ts');
+      assert.strictEqual(normalizePathSeparators('src/utils/helper.ts'), 'src/utils/helper.ts');
+    });
+
+    test('should handle mixed separators', () => {
+      assert.strictEqual(normalizePathSeparators('\\src/utils\\helper.ts'), '/src/utils/helper.ts');
+      assert.strictEqual(normalizePathSeparators('src\\utils/helper\\file.ts'), 'src/utils/helper/file.ts');
+    });
+
+    test('should handle empty string', () => {
+      assert.strictEqual(normalizePathSeparators(''), '');
     });
   });
 });

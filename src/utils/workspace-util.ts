@@ -219,5 +219,23 @@ export const getBackupFilename = (reviewFilePath: string): string => {
  * @param filename The name of the file
  */
 export const standardizeFilename = (workspaceRoot: string, filename: string): string => {
-  return filename.replace(workspaceRoot, '');
+  // Remove workspace root and normalize path separators to forward slashes
+  let relativePath = filename.replace(workspaceRoot, '');
+  relativePath = normalizePathSeparators(relativePath);
+
+  // Ensure path starts with / for consistency
+  if (!relativePath.startsWith('/')) {
+    relativePath = '/' + relativePath;
+  }
+
+  return relativePath;
+};
+
+/**
+ * Normalize path separators to forward slashes for consistent cross-platform storage
+ * @param filePath The file path to normalize
+ */
+export const normalizePathSeparators = (filePath: string): string => {
+  // Convert all backslashes to forward slashes
+  return filePath.replace(/\\/g, '/');
 };
