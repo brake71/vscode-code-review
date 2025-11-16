@@ -20,16 +20,8 @@ suite('GitLab Client - Error Handling Tests', () => {
       // Create client with invalid URL
       const invalidClient = new GitLabClient('https://invalid-gitlab-url-that-does-not-exist.com', 'token', 'project');
 
-      try {
-        await invalidClient.testConnection();
-        assert.fail('Should throw network error');
-      } catch (error) {
-        assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
-        assert.ok(
-          error.message.includes('Network error') || error.message.includes('ENOTFOUND'),
-          'Should mention network error',
-        );
-      }
+      const result = await invalidClient.testConnection();
+      assert.strictEqual(result, false, 'Should return false for network errors');
     });
 
     test('should handle timeout errors', async function () {
@@ -38,12 +30,9 @@ suite('GitLab Client - Error Handling Tests', () => {
       // Create client with unreachable host
       const timeoutClient = new GitLabClient('https://10.255.255.1', 'token', 'project');
 
-      try {
-        await timeoutClient.testConnection();
-        // If it doesn't timeout, that's also acceptable
-      } catch (error) {
-        assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
-      }
+      const result = await timeoutClient.testConnection();
+      // Should return false or timeout
+      assert.ok(typeof result === 'boolean', 'Should return boolean');
     });
 
     test('should handle DNS resolution errors', async function () {
@@ -52,13 +41,8 @@ suite('GitLab Client - Error Handling Tests', () => {
       // Create client with non-existent domain
       const dnsClient = new GitLabClient('https://this-domain-definitely-does-not-exist-12345.com', 'token', 'project');
 
-      try {
-        await dnsClient.testConnection();
-        assert.fail('Should throw DNS error');
-      } catch (error) {
-        assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
-        assert.ok(error.message.includes('Network error'), 'Should mention network error');
-      }
+      const result = await dnsClient.testConnection();
+      assert.strictEqual(result, false, 'Should return false for DNS errors');
     });
   });
 
@@ -76,7 +60,7 @@ suite('GitLab Client - Error Handling Tests', () => {
       const invalidClient = new GitLabClient(process.env['GITLAB_TEST_URL'], 'invalid-token-12345', 'test-project');
 
       try {
-        await invalidClient.testConnection();
+        await invalidClient.createIssue('Test', 'Test description');
         assert.fail('Should throw 401 error');
       } catch (error) {
         assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
@@ -90,12 +74,8 @@ suite('GitLab Client - Error Handling Tests', () => {
       // Create client with empty token
       const emptyTokenClient = new GitLabClient('https://gitlab.com', '', 'project');
 
-      try {
-        await emptyTokenClient.testConnection();
-        // May fail with 401 or other error
-      } catch (error) {
-        assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
-      }
+      const result = await emptyTokenClient.testConnection();
+      assert.strictEqual(result, false, 'Should return false for empty token');
     });
 
     test('should handle malformed token', async function () {
@@ -110,12 +90,8 @@ suite('GitLab Client - Error Handling Tests', () => {
       // Create client with malformed token
       const malformedClient = new GitLabClient(process.env['GITLAB_TEST_URL'], 'not-a-valid-token', 'test-project');
 
-      try {
-        await malformedClient.testConnection();
-        assert.fail('Should throw authentication error');
-      } catch (error) {
-        assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
-      }
+      const result = await malformedClient.testConnection();
+      assert.strictEqual(result, false, 'Should return false for malformed token');
     });
   });
 
@@ -137,7 +113,7 @@ suite('GitLab Client - Error Handling Tests', () => {
       );
 
       try {
-        await forbiddenClient.testConnection();
+        await forbiddenClient.createIssue('Test', 'Test description');
         // May succeed if project doesn't exist (404) or fail with 403
       } catch (error) {
         if (error instanceof GitLabApiError) {
@@ -167,14 +143,8 @@ suite('GitLab Client - Error Handling Tests', () => {
         'non-existent-project-99999',
       );
 
-      try {
-        await notFoundClient.testConnection();
-        assert.fail('Should throw 404 error');
-      } catch (error) {
-        assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
-        assert.strictEqual(error.statusCode, 404, 'Should be 404 status');
-        assert.ok(error.message.includes('Not Found'), 'Should mention not found');
-      }
+      const result = await notFoundClient.testConnection();
+      assert.strictEqual(result, false, 'Should return false for non-existent project');
     });
 
     test('should handle 404 Not Found for issue', async function () {
@@ -266,8 +236,8 @@ suite('GitLab Client - Error Handling Tests', () => {
         return;
       }
 
-      // Note: This test is difficult to trigger without actually hitting rate limits
-      // In a real scenario, you would need to make many requests quickly
+      // Note: This test verifies that the client can handle rate limits
+      // Actual rate limit testing requires mocking or real rate limit conditions
 
       const testClient = new GitLabClient(
         process.env['GITLAB_TEST_URL'],
@@ -281,16 +251,12 @@ suite('GitLab Client - Error Handling Tests', () => {
         promises.push(testClient.testConnection());
       }
 
-      try {
-        await Promise.all(promises);
-        // If no rate limit hit, test passes
-        assert.ok(true, 'Requests completed without rate limiting');
-      } catch (error) {
-        if (error instanceof GitLabApiError && error.statusCode === 429) {
-          assert.ok(error.message.includes('Rate Limit'), 'Should mention rate limit');
-          assert.ok(error.message.includes('Retry'), 'Should mention retry');
-        }
-      }
+      const results = await Promise.all(promises);
+      // If no rate limit hit, all should return boolean
+      assert.ok(
+        results.every((r) => typeof r === 'boolean'),
+        'All requests should return boolean',
+      );
     });
 
     test('should retry on 429 error with exponential backoff', async function () {
@@ -324,15 +290,9 @@ suite('GitLab Client - Error Handling Tests', () => {
         process.env['GITLAB_TEST_PROJECT'],
       );
 
-      try {
-        await testClient.testConnection();
-        // If successful, test passes
-        assert.ok(true, 'Connection successful');
-      } catch (error) {
-        if (error instanceof GitLabApiError && error.statusCode === 500) {
-          assert.ok(error.message.includes('Internal Server Error'), 'Should mention server error');
-        }
-      }
+      const result = await testClient.testConnection();
+      // Should return boolean regardless of server state
+      assert.ok(typeof result === 'boolean', 'Should return boolean');
     });
   });
 

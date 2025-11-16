@@ -178,7 +178,7 @@ export class GitLabClient {
             case 422:
               reject(new GitLabApiError(`Validation Error: ${errorMessage}`, statusCode, errorResponse));
               break;
-            case 429:
+            case 429: {
               const retryAfter = res.headers['retry-after'];
               reject(
                 new GitLabApiError(`Rate Limit Exceeded. Retry after: ${retryAfter || '60'} seconds`, statusCode, {
@@ -186,6 +186,7 @@ export class GitLabClient {
                 }),
               );
               break;
+            }
             case 500:
               reject(new GitLabApiError('Internal Server Error', statusCode, errorResponse));
               break;

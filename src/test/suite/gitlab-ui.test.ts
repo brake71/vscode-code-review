@@ -298,7 +298,7 @@ suite('GitLab UI Tests', () => {
   suite('Configuration Validation', () => {
     test('should validate complete configuration', async () => {
       // Set up complete configuration
-      await secretsStore.set('code-review.gitlab.token', 'glpat-test-token-12345678901234567890');
+      await secretsStore.set('code-review.gitlab.token', 'TEST_TOKEN_12345678901234567890');
       process.env['code-review.gitlab.baseUrl'] = 'https://gitlab.com';
       process.env['code-review.gitlab.projectId'] = 'test-project';
 

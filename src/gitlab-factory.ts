@@ -275,11 +275,18 @@ export class GitLabFactory {
     }
 
     // Удаление /api/v4 из базового URL если присутствует
-    const cleanBaseUrl = baseUrl.replace(/\/api\/v4\/?$/, '');
+    let cleanBaseUrl = baseUrl.replace(/\/api\/v4\/?$/, '');
+    // Удаление завершающего слэша
+    cleanBaseUrl = cleanBaseUrl.replace(/\/$/, '');
 
-    // Формирование URL задачи
-    // Формат: https://gitlab.com/group/project/-/issues/123
-    return `${cleanBaseUrl}/${projectId}/-/issues/${issueId}`;
+    // Проверка, является ли projectId числовым ID
+    if (/^\d+$/.test(projectId)) {
+      // Для числового ID используем формат /projects/<id>/-/issues/<issueId>
+      return `${cleanBaseUrl}/projects/${projectId}/-/issues/${issueId}`;
+    } else {
+      // Для пути (namespace/project) используем формат /<projectId>/-/issues/<issueId>
+      return `${cleanBaseUrl}/${projectId}/-/issues/${issueId}`;
+    }
   }
 
   /**
@@ -332,10 +339,12 @@ export class GitLabFactory {
     const { CsvStructure } = require('./model');
 
     return new Promise((resolve, reject) => {
+      let processed = false;
       parse
-        .parseString(rows[updateRowIndex], { headers: true })
+        .parseString(rows[updateRowIndex], { headers: CsvStructure.headers, renameHeaders: false })
         .on('error', (error: Error) => reject(error))
         .on('data', (row: CsvEntry) => {
+          processed = true;
           // Обновление issue_id
           row.issue_id = issueId;
           // Форматирование обратно в CSV
@@ -343,6 +352,11 @@ export class GitLabFactory {
           // Сохранение обновленного файла
           setCsvFileLines(this.reviewFile, rows);
           resolve();
+        })
+        .on('end', () => {
+          if (!processed) {
+            reject(new Error(`Cannot parse comment with ID ${commentId} in ${this.reviewFile}`));
+          }
         });
     });
   }
@@ -365,10 +379,12 @@ export class GitLabFactory {
     const { CsvStructure } = require('./model');
 
     return new Promise((resolve, reject) => {
+      let processed = false;
       parse
-        .parseString(rows[updateRowIndex], { headers: true })
+        .parseString(rows[updateRowIndex], { headers: CsvStructure.headers, renameHeaders: false })
         .on('error', (error: Error) => reject(error))
         .on('data', (row: CsvEntry) => {
+          processed = true;
           // Обновление статуса
           row.status = status;
           // Форматирование обратно в CSV
@@ -376,6 +392,11 @@ export class GitLabFactory {
           // Сохранение обновленного файла
           setCsvFileLines(this.reviewFile, rows);
           resolve();
+        })
+        .on('end', () => {
+          if (!processed) {
+            reject(new Error(`Cannot parse comment with ID ${commentId} in ${this.reviewFile}`));
+          }
         });
     });
   }

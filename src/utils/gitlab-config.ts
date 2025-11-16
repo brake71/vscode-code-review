@@ -162,7 +162,8 @@ export class GitLabConfigManager {
     }
 
     // Проверка на путь вида group/project или group/subgroup/project
-    if (/^[a-zA-Z0-9_\-]+([\/][a-zA-Z0-9_\-]+)+$/.test(projectId)) {
+    // Разрешаем буквы, цифры, подчеркивания, дефисы и точки
+    if (/^[a-zA-Z0-9_.\-]+([\/][a-zA-Z0-9_.\-]+)+$/.test(projectId)) {
       return true;
     }
 

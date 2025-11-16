@@ -890,6 +890,10 @@ export class WorkspaceContext {
           if (!value || value.trim() === '') {
             return 'Project ID is required';
           }
+          // Validate format: numeric or path
+          if (!/^\d+$/.test(value) && !/^[a-zA-Z0-9_.\-]+([\/][a-zA-Z0-9_.\-]+)+$/.test(value)) {
+            return 'Project ID must be a number or a path (e.g., "group/project")';
+          }
           return null;
         },
       });

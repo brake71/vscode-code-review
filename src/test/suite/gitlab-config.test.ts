@@ -29,14 +29,14 @@ suite('GitLab Config Manager', () => {
 
   suite('Token Management', () => {
     test('should store and retrieve token', async () => {
-      const testToken = 'glpat-test-token-12345678901234567890';
+      const testToken = 'TEST_TOKEN_12345678901234567890';
       await configManager.setToken(testToken);
       const retrievedToken = await configManager.getToken();
       assert.strictEqual(retrievedToken, testToken);
     });
 
     test('should trim token when storing', async () => {
-      const testToken = '  glpat-test-token-12345678901234567890  ';
+      const testToken = '  TEST_TOKEN_12345678901234567890  ';
       await configManager.setToken(testToken);
       const retrievedToken = await configManager.getToken();
       assert.strictEqual(retrievedToken, testToken.trim());
@@ -47,7 +47,7 @@ suite('GitLab Config Manager', () => {
     });
 
     test('should delete token', async () => {
-      const testToken = 'glpat-test-token-12345678901234567890';
+      const testToken = 'TEST_TOKEN_12345678901234567890';
       await configManager.setToken(testToken);
       await configManager.deleteToken();
       const retrievedToken = await configManager.getToken();
@@ -58,7 +58,7 @@ suite('GitLab Config Manager', () => {
   suite('Configuration Validation', () => {
     test('should validate correct GitLab token format (glpat-)', () => {
       const manager = configManager as any;
-      assert.strictEqual(manager.isValidToken('glpat-12345678901234567890'), true);
+      assert.strictEqual(manager.isValidToken('glpat-xxxx12345678901234567890'), true);
       assert.strictEqual(manager.isValidToken('glpat-abc'), false);
     });
 
@@ -87,6 +87,7 @@ suite('GitLab Config Manager', () => {
       assert.strictEqual(manager.isValidProjectId('group/project'), true);
       assert.strictEqual(manager.isValidProjectId('group/subgroup/project'), true);
       assert.strictEqual(manager.isValidProjectId('my-group/my-project'), true);
+      assert.strictEqual(manager.isValidProjectId('my.group/my-project'), true);
     });
 
     test('should reject invalid project ID', () => {
