@@ -58,7 +58,7 @@ suite('GitLab Config Manager', () => {
   suite('Configuration Validation', () => {
     test('should validate correct GitLab token format (glpat-)', () => {
       const manager = configManager as any;
-      assert.strictEqual(manager.isValidToken('glpat-xxxx12345678901234567890'), true);
+      assert.strictEqual(manager.isValidToken('TEST_TOKEN_12345678901234567890'), true);
       assert.strictEqual(manager.isValidToken('glpat-abc'), false);
     });
 

@@ -857,77 +857,9 @@ export class WorkspaceContext {
      * configure GitLab integration
      */
     this.configureGitLabRegistration = commands.registerCommand('codeReview.configureGitLab', async () => {
-      const config = workspace.getConfiguration('code-review.gitlab');
-
-      // Step 1: Base URL
-      const baseUrl = await window.showInputBox({
-        prompt: 'Enter GitLab base URL (e.g., https://gitlab.com)',
-        value: (config.get('baseUrl') as string) || '',
-        placeHolder: 'https://gitlab.com',
-        validateInput: (value) => {
-          if (!value || value.trim() === '') {
-            return 'Base URL is required';
-          }
-          try {
-            new URL(value);
-            return null;
-          } catch {
-            return 'Please enter a valid URL';
-          }
-        },
-      });
-
-      if (!baseUrl) {
-        return; // User cancelled
-      }
-
-      // Step 2: Project ID
-      const projectId = await window.showInputBox({
-        prompt: 'Enter GitLab project ID (numeric ID or path like "group/project")',
-        value: (config.get('projectId') as string) || '',
-        placeHolder: '123 or group/project',
-        validateInput: (value) => {
-          if (!value || value.trim() === '') {
-            return 'Project ID is required';
-          }
-          // Validate format: numeric or path
-          if (!/^\d+$/.test(value) && !/^[a-zA-Z0-9_.\-]+([\/][a-zA-Z0-9_.\-]+)+$/.test(value)) {
-            return 'Project ID must be a number or a path (e.g., "group/project")';
-          }
-          return null;
-        },
-      });
-
-      if (!projectId) {
-        return; // User cancelled
-      }
-
-      // Step 3: Access Token
-      const token = await window.showInputBox({
-        prompt: 'Enter GitLab Personal Access Token',
-        password: true,
-        placeHolder: 'glpat-xxxxxxxxxxxxxxxxxxxx',
-        validateInput: (value) => {
-          if (!value || value.trim() === '') {
-            return 'Access token is required';
-          }
-          return null;
-        },
-      });
-
-      if (!token) {
-        return; // User cancelled
-      }
-
-      // Save configuration
       try {
-        await config.update('baseUrl', baseUrl, ConfigurationTarget.Workspace);
-        await config.update('projectId', projectId, ConfigurationTarget.Workspace);
-
-        // Store token securely
         const configManager = new (require('./utils/gitlab-config').GitLabConfigManager)(this.context);
-        await configManager.setToken(token);
-
+        await configManager.showConfigurationDialog();
         window.showInformationMessage('GitLab integration configured successfully!');
       } catch (error) {
         window.showErrorMessage(`Failed to save configuration: ${error}`);

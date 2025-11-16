@@ -49,7 +49,7 @@ async function withRetry<T>(
 ): Promise<T> {
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+  for (let attempt = 0; attempt < config.maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error) {
@@ -58,7 +58,7 @@ async function withRetry<T>(
       // Only retry on rate limit errors (429)
       if (error instanceof GitLabApiError && error.statusCode === 429) {
         // Don't retry if we've exhausted all attempts
-        if (attempt === config.maxRetries) {
+        if (attempt === config.maxRetries - 1) {
           break;
         }
 

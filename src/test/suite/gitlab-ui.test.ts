@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { ExtensionContext } from 'vscode';
+import { ExtensionContext, workspace } from 'vscode';
 import { GitLabFactory } from '../../gitlab-factory';
 import { ReviewCommentService } from '../../review-comment';
 import { CsvEntry } from '../../model';
@@ -9,10 +9,31 @@ suite('GitLab UI Tests', () => {
   let commentService: ReviewCommentService;
   let gitlabFactory: GitLabFactory;
   let secretsStore: Map<string, string>;
+  let originalGetConfiguration: any;
+  let mockConfigValues: Map<string, any>;
 
   setup(() => {
     // Create mock secrets store
     secretsStore = new Map<string, string>();
+
+    // Create mock configuration store
+    mockConfigValues = new Map<string, any>();
+
+    // Store original workspace.getConfiguration
+    originalGetConfiguration = workspace.getConfiguration;
+
+    // Mock workspace.getConfiguration
+    (workspace as any).getConfiguration = (section?: string) => {
+      if (section === 'code-review.gitlab') {
+        return {
+          get: (key: string) => mockConfigValues.get(key),
+          has: (key: string) => mockConfigValues.has(key),
+          inspect: () => undefined,
+          update: async () => {},
+        };
+      }
+      return originalGetConfiguration(section);
+    };
 
     // Create mock ExtensionContext
     mockContext = {
@@ -43,6 +64,12 @@ suite('GitLab UI Tests', () => {
     gitlabFactory = new GitLabFactory(mockContext, testWorkspaceRoot, commentService, testReviewFile);
   });
 
+  teardown(() => {
+    // Restore original workspace.getConfiguration
+    (workspace as any).getConfiguration = originalGetConfiguration;
+    mockConfigValues.clear();
+  });
+
   suite('Issue URL Generation', () => {
     test('should generate correct GitLab issue URL', () => {
       // Set up configuration
@@ -51,8 +78,8 @@ suite('GitLab UI Tests', () => {
       const issueId = '123';
 
       // Mock configuration
-      process.env['code-review.gitlab.baseUrl'] = baseUrl;
-      process.env['code-review.gitlab.projectId'] = projectId;
+      mockConfigValues.set('baseUrl', baseUrl);
+      mockConfigValues.set('projectId', projectId);
 
       const url = gitlabFactory.getIssueUrl(issueId);
 
@@ -68,8 +95,8 @@ suite('GitLab UI Tests', () => {
       const projectId = 'test-project';
       const issueId = '456';
 
-      process.env['code-review.gitlab.baseUrl'] = baseUrl;
-      process.env['code-review.gitlab.projectId'] = projectId;
+      mockConfigValues.set('baseUrl', baseUrl);
+      mockConfigValues.set('projectId', projectId);
 
       const url = gitlabFactory.getIssueUrl(issueId);
 
@@ -83,8 +110,8 @@ suite('GitLab UI Tests', () => {
       const projectId = '12345';
       const issueId = '789';
 
-      process.env['code-review.gitlab.baseUrl'] = baseUrl;
-      process.env['code-review.gitlab.projectId'] = projectId;
+      mockConfigValues.set('baseUrl', baseUrl);
+      mockConfigValues.set('projectId', projectId);
 
       const url = gitlabFactory.getIssueUrl(issueId);
 
@@ -93,6 +120,8 @@ suite('GitLab UI Tests', () => {
     });
 
     test('should return empty string for missing configuration', () => {
+      mockConfigValues.clear();
+
       const url = gitlabFactory.getIssueUrl('123');
 
       // Verify empty string is returned
@@ -100,8 +129,8 @@ suite('GitLab UI Tests', () => {
     });
 
     test('should return empty string for empty issue ID', () => {
-      process.env['code-review.gitlab.baseUrl'] = 'https://gitlab.com';
-      process.env['code-review.gitlab.projectId'] = 'project';
+      mockConfigValues.set('baseUrl', 'https://gitlab.com');
+      mockConfigValues.set('projectId', 'project');
 
       const url = gitlabFactory.getIssueUrl('');
 
@@ -261,8 +290,8 @@ suite('GitLab UI Tests', () => {
       const projectId = 'group/project';
       const issueId = '123';
 
-      process.env['code-review.gitlab.baseUrl'] = baseUrl;
-      process.env['code-review.gitlab.projectId'] = projectId;
+      mockConfigValues.set('baseUrl', baseUrl);
+      mockConfigValues.set('projectId', projectId);
 
       const url = gitlabFactory.getIssueUrl(issueId);
 
@@ -285,8 +314,8 @@ suite('GitLab UI Tests', () => {
       const projectId = 'my-group/my-project';
       const issueId = '456';
 
-      process.env['code-review.gitlab.baseUrl'] = baseUrl;
-      process.env['code-review.gitlab.projectId'] = projectId;
+      mockConfigValues.set('baseUrl', baseUrl);
+      mockConfigValues.set('projectId', projectId);
 
       const url = gitlabFactory.getIssueUrl(issueId);
 
@@ -298,9 +327,9 @@ suite('GitLab UI Tests', () => {
   suite('Configuration Validation', () => {
     test('should validate complete configuration', async () => {
       // Set up complete configuration
-      await secretsStore.set('code-review.gitlab.token', 'TEST_TOKEN_12345678901234567890');
-      process.env['code-review.gitlab.baseUrl'] = 'https://gitlab.com';
-      process.env['code-review.gitlab.projectId'] = 'test-project';
+      secretsStore.set('code-review.gitlab.token', 'TEST_TOKEN_12345678901234567890');
+      mockConfigValues.set('baseUrl', 'https://gitlab.com');
+      mockConfigValues.set('projectId', 'test-project');
 
       const isValid = await gitlabFactory.validateConfiguration();
 
@@ -311,8 +340,7 @@ suite('GitLab UI Tests', () => {
     test('should detect missing configuration', async () => {
       // Clear configuration
       secretsStore.clear();
-      delete process.env['code-review.gitlab.baseUrl'];
-      delete process.env['code-review.gitlab.projectId'];
+      mockConfigValues.clear();
 
       const isValid = await gitlabFactory.validateConfiguration();
 
