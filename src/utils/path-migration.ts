@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { parseFile } from '@fast-csv/parse';
 import { CsvEntry, CsvStructure } from '../model';
 import { getCsvFileLinesAsArray, setCsvFileLines } from './storage-utils';
 import { normalizePathSeparators } from './workspace-util';
@@ -21,7 +22,6 @@ export function migratePathSeparators(reviewFile: string): Promise<number> {
   }
 
   let migratedCount = 0;
-  const parseFile = require('@fast-csv/parse').parseFile;
 
   return new Promise<number>((resolve) => {
     const entries: CsvEntry[] = [];
