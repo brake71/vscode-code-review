@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { parseFile } from '@fast-csv/parse';
 import { CsvEntry, CsvStructure } from '../model';
-import { getCsvFileLinesAsArray, setCsvFileLines } from './storage-utils';
+import { setCsvFileLines } from './storage-utils';
 import { normalizePathSeparators } from './workspace-util';
 
 /**
@@ -13,11 +13,6 @@ import { normalizePathSeparators } from './workspace-util';
  */
 export function migratePathSeparators(reviewFile: string): Promise<number> {
   if (!fs.existsSync(reviewFile)) {
-    return Promise.resolve(0);
-  }
-
-  const rows = getCsvFileLinesAsArray(reviewFile);
-  if (rows.length === 0) {
     return Promise.resolve(0);
   }
 
