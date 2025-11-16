@@ -98,6 +98,7 @@ export class ExportFactory {
   private currentCommitId: string | null = null;
   private filterByFilename: boolean = false;
   private currentFilename: string | null = null;
+  private lastActiveFileName: string | null = null; // Track last active text editor file
   private filterByPriority: boolean = false;
 
   // Cache properties
@@ -390,6 +391,24 @@ export class ExportFactory {
 
     this.filterByPriority = workspace.getConfiguration().get('code-review.filterCommentsByPriority') as boolean;
     this.setFilterByPriority(this.filterByPriority, true);
+
+    // Track last active text editor to handle webview case
+    this.updateLastActiveFile();
+    context.subscriptions.push(
+      window.onDidChangeActiveTextEditor((editor) => {
+        this.updateLastActiveFile();
+      }),
+    );
+  }
+
+  /**
+   * Update last active file name from active text editor
+   */
+  private updateLastActiveFile(): void {
+    const editor = window.activeTextEditor;
+    if (editor && editor.document.uri.scheme === 'file') {
+      this.lastActiveFileName = editor.document.fileName;
+    }
   }
 
   get absoluteFilePath(): string {
@@ -701,7 +720,8 @@ export class ExportFactory {
     let changedFile = false;
 
     if (this.filterByFilename) {
-      let filename = window.activeTextEditor?.document.fileName;
+      // Try to get filename from active editor, fallback to last active file
+      let filename = window.activeTextEditor?.document.fileName || this.lastActiveFileName;
       if (filename) {
         filename = standardizeFilename(this.workspaceRoot, filename);
         if (this.currentFilename !== filename) {
