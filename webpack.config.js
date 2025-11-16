@@ -35,6 +35,7 @@ const config = {
       patterns: [
         'src/template.default.hbs',
         'src/template-markdown.default.hbs',
+        'src/template-gitlab-issue.default.hbs',
         'src/webview.html',
         'images/icons',
         // Copy sql.js WASM file to dist

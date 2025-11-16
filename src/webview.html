@@ -587,6 +587,11 @@
         transition: color var(--transition-standard);
       }
 
+      .status-check {
+        color: #ff8c00;
+        transition: color var(--transition-standard);
+      }
+
       .status-closed {
         color: #858585;
         transition: color var(--transition-standard);
@@ -608,6 +613,11 @@
         transition: color var(--transition-standard);
       }
 
+      body.vscode-light .status-check {
+        color: #d97700;
+        transition: color var(--transition-standard);
+      }
+
       body.vscode-light .status-closed {
         color: #6b6b6b;
         transition: color var(--transition-standard);
@@ -626,6 +636,11 @@
 
       body.vscode-dark .status-resolved {
         color: #89d185;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-check {
+        color: #ffa500;
         transition: color var(--transition-standard);
       }
 
@@ -673,6 +688,11 @@
         transition: color var(--transition-standard);
       }
 
+      .status-select[data-status='check'] {
+        color: #ff8c00;
+        transition: color var(--transition-standard);
+      }
+
       .status-select[data-status='closed'] {
         color: #858585;
         transition: color var(--transition-standard);
@@ -691,6 +711,11 @@
 
       body.vscode-light .status-select[data-status='resolved'] {
         color: #5a9e57;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-select[data-status='check'] {
+        color: #d97700;
         transition: color var(--transition-standard);
       }
 
@@ -715,9 +740,64 @@
         transition: color var(--transition-standard);
       }
 
+      body.vscode-dark .status-select[data-status='check'] {
+        color: #ffa500;
+        transition: color var(--transition-standard);
+      }
+
       body.vscode-dark .status-select[data-status='closed'] {
         color: #a0a0a0;
         transition: color var(--transition-standard);
+      }
+
+      /* GitLab Issue Link Styling */
+      .gitlab-issue-link {
+        display: flex;
+        align-items: center;
+        padding: var(--spacing-sm) var(--spacing-md);
+        background-color: var(--color-input-bg);
+        border: 1px solid var(--color-input-border);
+        border-radius: 4px;
+        transition: border-color var(--transition-standard), background-color var(--transition-standard),
+          transform var(--transition-standard);
+      }
+
+      .gitlab-issue-link:hover {
+        border-color: var(--color-input-focus-border);
+        background-color: var(--color-editor-bg);
+        transform: translateY(-1px);
+      }
+
+      .gitlab-issue-link a {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        text-decoration: none;
+        color: var(--color-input-fg);
+        font-size: 13px;
+        font-weight: 500;
+        transition: color var(--transition-standard);
+        width: 100%;
+      }
+
+      .gitlab-issue-link a:hover {
+        color: var(--color-input-focus-border);
+      }
+
+      .gitlab-issue-link a .codicon {
+        font-size: 16px;
+        flex-shrink: 0;
+        transition: transform var(--transition-standard);
+      }
+
+      .gitlab-issue-link a:hover .codicon {
+        transform: scale(1.1);
+      }
+
+      .gitlab-issue-link a:focus-visible {
+        outline: 2px solid var(--color-input-focus-border);
+        outline-offset: 2px;
+        border-radius: 2px;
       }
 
       /* Responsive Layout */
@@ -1021,6 +1101,20 @@
           </div>
         </div>
 
+        <!-- GitLab Issue Link (shown only when issue_id exists) -->
+        <div class="form-field" id="gitlab-issue-link-group" style="display: none">
+          <label>
+            <span class="codicon codicon-link-external"></span>
+            GitLab Issue
+          </label>
+          <div class="gitlab-issue-link">
+            <a id="gitlab-issue-link" href="#" target="_blank" rel="noopener noreferrer" title="Open issue in GitLab">
+              <span class="codicon codicon-gitlab"></span>
+              <span id="gitlab-issue-id"></span>
+            </a>
+          </div>
+        </div>
+
         <!-- Title Field -->
         <div class="form-field">
           <label for="title">
@@ -1168,6 +1262,19 @@
       // Set priority selector (radio button in new horizontal layout)
       if (event.data.comment.priority) {
         document.getElementById('prio-' + event.data.comment.priority).checked = true;
+      }
+
+      // Display GitLab issue link if URL is provided
+      const gitlabIssueLinkGroup = document.getElementById('gitlab-issue-link-group');
+      const gitlabIssueLink = document.getElementById('gitlab-issue-link');
+      const gitlabIssueId = document.getElementById('gitlab-issue-id');
+
+      if (event.data.gitlabIssueUrl && event.data.gitlabIssueUrl.trim() !== '') {
+        gitlabIssueLinkGroup.style.display = 'block';
+        gitlabIssueLink.href = event.data.gitlabIssueUrl;
+        gitlabIssueId.textContent = '#' + (event.data.comment.issue_id || '');
+      } else {
+        gitlabIssueLinkGroup.style.display = 'none';
       }
     });
 

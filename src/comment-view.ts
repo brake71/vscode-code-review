@@ -9,6 +9,8 @@ import {
   ProgressLocation,
   StatusBarAlignment,
   StatusBarItem,
+  TreeItemCollapsibleState,
+  ThemeIcon,
 } from 'vscode';
 import { CommentListEntry } from './comment-list-entry';
 import { ExportFactory } from './export-factory';
@@ -36,8 +38,12 @@ export class CommentsProvider implements TreeDataProvider<CommentListEntry> {
   // Status bar item for comment count
   private statusBarItem: StatusBarItem;
 
+  // GitLab sync timestamp
+  private lastSyncTime: Date | null = null;
+
   constructor(private context: ExtensionContext, private exportFactory: ExportFactory) {
     this.restoreFilterState();
+    this.restoreSyncTime();
     this.updateContextVariables();
 
     // Initialize status bar item
@@ -65,6 +71,44 @@ export class CommentsProvider implements TreeDataProvider<CommentListEntry> {
     workspaceState.update('codeReview.filterByAuthor', this.filterByAuthor);
     workspaceState.update('codeReview.filterByStatus', this.filterByStatus);
     workspaceState.update('codeReview.filterByAssignee', this.filterByAssignee);
+  }
+
+  /**
+   * Restore last sync time from workspace state
+   */
+  private restoreSyncTime(): void {
+    const workspaceState = this.context.workspaceState;
+    const syncTimeString = workspaceState.get<string | undefined>('codeReview.gitlab.lastSyncTime');
+    if (syncTimeString) {
+      this.lastSyncTime = new Date(syncTimeString);
+    }
+  }
+
+  /**
+   * Save last sync time to workspace state
+   */
+  private saveSyncTime(): void {
+    const workspaceState = this.context.workspaceState;
+    if (this.lastSyncTime) {
+      workspaceState.update('codeReview.gitlab.lastSyncTime', this.lastSyncTime.toISOString());
+    }
+  }
+
+  /**
+   * Update last sync time and persist it
+   * Should be called after successful GitLab sync
+   */
+  updateLastSyncTime(): void {
+    this.lastSyncTime = new Date();
+    this.saveSyncTime();
+  }
+
+  /**
+   * Get last sync time
+   * @returns Date of last sync or null if never synced
+   */
+  getLastSyncTime(): Date | null {
+    return this.lastSyncTime;
   }
 
   /**
@@ -214,19 +258,81 @@ export class CommentsProvider implements TreeDataProvider<CommentListEntry> {
   }
 
   getTreeItem(element: CommentListEntry): TreeItem {
+    // Handle sync status item
+    if (element.id === '__sync_status__') {
+      const item = new TreeItem(element.label, element.collapsibleState);
+      item.iconPath = element.iconPath;
+      item.tooltip = element.tooltip;
+      item.contextValue = 'sync-status';
+      return item;
+    }
     return element;
   }
 
   getChildren(element?: CommentListEntry): Thenable<CommentListEntry[]> {
     // if no element, the first item level starts
     if (!element) {
-      return this.exportFactory.getFilesContainingComments(
-        this.filterByAuthor,
-        this.filterByStatus,
-        this.filterByAssignee,
-      );
+      return this.getRootChildren();
     } else {
       return this.exportFactory.getComments(element, this.filterByAuthor, this.filterByStatus, this.filterByAssignee);
     }
+  }
+
+  /**
+   * Get root level children including sync status and file entries
+   */
+  private async getRootChildren(): Promise<CommentListEntry[]> {
+    const children: CommentListEntry[] = [];
+
+    // Add sync status item at the top
+    const syncStatusItem = this.createSyncStatusItem();
+    children.push(syncStatusItem);
+
+    // Add file entries
+    const fileEntries = await this.exportFactory.getFilesContainingComments(
+      this.filterByAuthor,
+      this.filterByStatus,
+      this.filterByAssignee,
+    );
+    children.push(...fileEntries);
+
+    return children;
+  }
+
+  /**
+   * Create sync status tree item
+   */
+  private createSyncStatusItem(): CommentListEntry {
+    let label: string;
+    let tooltip: string;
+
+    if (this.lastSyncTime) {
+      const formattedTime = this.lastSyncTime.toLocaleString();
+      label = `Last GitLab sync: ${formattedTime}`;
+      tooltip = `Last synchronized with GitLab on ${formattedTime}`;
+    } else {
+      label = 'GitLab: Never synced';
+      tooltip = 'No GitLab synchronization has been performed yet';
+    }
+
+    const syncItem = new CommentListEntry(
+      '__sync_status__',
+      label,
+      undefined,
+      tooltip,
+      TreeItemCollapsibleState.None,
+      { group: '', lines: [] } as any,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+
+    // Add icon
+    syncItem.iconPath = new ThemeIcon('sync');
+
+    return syncItem;
   }
 }

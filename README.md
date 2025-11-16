@@ -28,6 +28,7 @@ This extension allows you to create a code review file you can hand over to a cu
     - [export created notes as GitLab importable CSV file](#export-created-notes-as-gitlab-importable-csv-file)
     - [export created notes as GitHub importable CSV file](#export-created-notes-as-github-importable-csv-file)
     - [export created notes as JIRA importable CSV file](#export-created-notes-as-jira-importable-csv-file)
+  - [GitLab Integration](#gitlab-integration)
   - [Import from CodeRabbit](#import-from-coderabbit)
 - [Extension Settings](#extension-settings)
   - [`code-review.filename`](#code-reviewfilename)
@@ -49,6 +50,10 @@ This extension allows you to create a code review file you can hand over to a cu
   - [`code-review.importConflictMode`](#code-reviewimportconflictmode)
   - [`code-review.importCloneSuffix`](#code-reviewimportclonesuffix)
   - [`code-review.codeSelectionBackgroundColor`](#code-reviewcodeselectionbackgroundcolor)
+  - [`code-review.gitlab.baseUrl`](#code-reviewgitlabbaseurl)
+  - [`code-review.gitlab.projectId`](#code-reviewgitlabprojectid)
+  - [`code-review.gitlab.defaultLabels`](#code-reviewgitlabdefaultlabels)
+  - [`code-review.gitlab.issueTemplatePath`](#code-reviewgitlabissuetemplatepath)
 - [Themable colors](#themable-colors)
   - [`codereview.priority.green`](#codereviewprioritygreen)
   - [`codereview.priority.yellow`](#codereviewpriorityyellow)
@@ -233,6 +238,103 @@ After exporting, you can import the file in your JIRA instance and probably map 
 
 ![JIRA: import issues from a CSV file](./images/jira-import.png)
 ![JIRA: map CSV file props](./images/jira-import-map.png)
+
+### GitLab Integration
+
+The extension provides seamless integration with GitLab, allowing you to export code review comments as GitLab issues and synchronize issue statuses back to your review.
+
+**Key Features:**
+
+- 🚀 **Export to GitLab**: Create GitLab issues directly from code review comments
+- 🔄 **Status Synchronization**: Automatically sync closed GitLab issues back to your review
+- 🔗 **Issue Links**: View and open GitLab issues directly from VS Code
+- 📝 **Custom Templates**: Use Handlebars templates to format issue descriptions
+- 🏷️ **Default Labels**: Automatically apply labels to created issues
+- 🔐 **Secure Token Storage**: Personal Access Tokens stored securely using VS Code Secrets API
+
+**Quick Start:**
+
+1. **Configure GitLab Integration**
+   - Open Command Palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
+   - Run: **Code Review: Configure GitLab Integration**
+   - Enter your GitLab Base URL (e.g., `https://gitlab.com`)
+   - Enter your Personal Access Token
+   - Enter your Project ID
+
+2. **Export Comments to GitLab**
+   - Click the GitLab export button in the Comment Explorer toolbar
+   - Or right-click a comment and select "Export to GitLab"
+   - Comments are created as GitLab issues with full context
+
+3. **Sync Issue Statuses**
+   - Click the sync button in the Comment Explorer toolbar
+   - Closed GitLab issues update comment status to "Check"
+   - Review and verify fixes before closing comments
+
+**Configuration Settings:**
+
+```json
+{
+  "code-review.gitlab.baseUrl": "https://gitlab.com",
+  "code-review.gitlab.projectId": "123",
+  "code-review.gitlab.defaultLabels": ["code-review", "bug"],
+  "code-review.gitlab.issueTemplatePath": ".vscode/gitlab-issue-template.hbs"
+}
+```
+
+**Custom Issue Templates:**
+
+Create a custom Handlebars template to format GitLab issue descriptions:
+
+```handlebars
+## 🐛 Code Review Issue
+
+**Priority**: {{priorityName priority}}
+**Category**: {{category}}
+
+### 📍 Location
+- **File**: [{{filename}}]({{url}})
+- **Lines**: {{lines}}
+
+### 💬 Comment
+{{comment}}
+
+{{#if code}}
+### 📄 Code Snippet
+```
+{{{codeBlock code}}}
+```
+{{/if}}
+```
+
+**Available Template Variables:**
+- `title`, `comment`, `filename`, `lines`, `sha`, `url`
+- `priority`, `category`, `additional`, `code`
+
+**Template Helpers:**
+- `{{priorityName priority}}` - Converts priority to text (Low, Medium, High, Critical)
+- `{{{codeBlock code}}}` - Decodes Base64 code snippet
+
+**Workflow Example:**
+
+1. Complete your code review and add comments
+2. Export all comments to GitLab (creates issues)
+3. Team works on issues in GitLab
+4. Periodically sync to see which issues are closed
+5. Review comments marked as "Check" to verify fixes
+6. Manually close verified comments
+
+**Documentation:**
+
+- 📖 [Setup Guide](./docs/gitlab-integration-setup.md) - Detailed configuration instructions
+- 📘 [Usage Guide](./docs/gitlab-integration-guide.md) - Complete feature documentation
+- 🔧 [Troubleshooting](./docs/gitlab-integration-guide.md#troubleshooting) - Common issues and solutions
+
+**Security:**
+
+- Personal Access Tokens are stored securely using VS Code's Secrets API
+- Tokens are never saved in workspace settings or version control
+- Requires `api` or `write_api` scope for creating and updating issues
 
 ### Import from CodeRabbit
 
@@ -598,6 +700,72 @@ Must be specified using a hexadecimal representation - with or without the alpha
   "code-review.codeSelectionBackgroundColor": "rgba(200, 200, 50, 0.15)"
 }
 ```
+
+### `code-review.gitlab.baseUrl`
+
+The base URL of your GitLab instance. Required for GitLab integration.
+
+```json
+{
+  "code-review.gitlab.baseUrl": "https://gitlab.com"
+}
+```
+
+For self-hosted GitLab instances:
+
+```json
+{
+  "code-review.gitlab.baseUrl": "https://gitlab.example.com"
+}
+```
+
+### `code-review.gitlab.projectId`
+
+The GitLab project ID where issues will be created. Can be either a numeric ID or a URL-encoded project path.
+
+```json
+{
+  "code-review.gitlab.projectId": "123"
+}
+```
+
+Or using project path:
+
+```json
+{
+  "code-review.gitlab.projectId": "mygroup/myproject"
+}
+```
+
+### `code-review.gitlab.defaultLabels`
+
+Default labels to automatically apply to all created GitLab issues.
+
+```json
+{
+  "code-review.gitlab.defaultLabels": ["code-review", "bug", "needs-review"]
+}
+```
+
+### `code-review.gitlab.issueTemplatePath`
+
+Path to a custom Handlebars template for formatting GitLab issue descriptions. If not set, the built-in default template is used.
+
+```json
+{
+  "code-review.gitlab.issueTemplatePath": ".vscode/gitlab-issue-template.hbs"
+}
+```
+
+The template can use the following variables:
+- `title`, `comment`, `filename`, `lines`, `sha`, `url`
+- `priority`, `category`, `additional`, `code`
+
+And helpers:
+- `{{priorityName priority}}` - Converts priority number to text
+- `{{{codeBlock code}}}` - Decodes Base64 code snippet
+
+See the [GitLab Integration Setup Guide](./docs/gitlab-integration-setup.md) for template examples.
 
 ## Themable colors
 
