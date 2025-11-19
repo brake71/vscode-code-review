@@ -27,8 +27,8 @@ suite('GitLab Client - Error Handling Tests', () => {
     test('should handle timeout errors', async function () {
       this.timeout(5000);
 
-      // Create client with unreachable host
-      const timeoutClient = new GitLabClient('https://10.255.255.1', 'token', 'project');
+      // Create client with unreachable host and short timeout
+      const timeoutClient = new GitLabClient('https://10.255.255.1', 'token', 'project', 2000);
 
       const result = await timeoutClient.testConnection();
       // Should return false or timeout
@@ -60,7 +60,7 @@ suite('GitLab Client - Error Handling Tests', () => {
       const invalidClient = new GitLabClient(process.env['GITLAB_TEST_URL'], 'invalid-token-12345', 'test-project');
 
       try {
-        await invalidClient.createIssue('Test', 'Test description');
+        await invalidClient.createIssue({ title: 'Test', description: 'Test description' });
         assert.fail('Should throw 401 error');
       } catch (error) {
         assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
@@ -113,7 +113,7 @@ suite('GitLab Client - Error Handling Tests', () => {
       );
 
       try {
-        await forbiddenClient.createIssue('Test', 'Test description');
+        await forbiddenClient.createIssue({ title: 'Test', description: 'Test description' });
         // May succeed if project doesn't exist (404) or fail with 403
       } catch (error) {
         if (error instanceof GitLabApiError) {
@@ -188,7 +188,7 @@ suite('GitLab Client - Error Handling Tests', () => {
 
       try {
         // Try to create issue with empty title (should fail validation)
-        await testClient.createIssue('', 'Description');
+        await testClient.createIssue({ title: '', description: 'Description' });
         assert.fail('Should throw 400 error');
       } catch (error) {
         assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');
@@ -217,7 +217,7 @@ suite('GitLab Client - Error Handling Tests', () => {
 
       try {
         // Try to create issue with invalid data
-        await testClient.createIssue('', '');
+        await testClient.createIssue({ title: '', description: '' });
         assert.fail('Should throw validation error');
       } catch (error) {
         assert.ok(error instanceof GitLabApiError, 'Should be GitLabApiError');

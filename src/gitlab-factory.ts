@@ -125,7 +125,11 @@ export class GitLabFactory {
           const description = this.templateEngine.renderIssueDescription(comment);
 
           // Создание задачи в GitLab
-          const issue = await this.client!.createIssue(comment.title, description, defaultLabels);
+          const issue = await this.client!.createIssue({
+            title: comment.title,
+            description: description,
+            labels: defaultLabels,
+          });
 
           // Обновление CSV с полученным issue_id
           await this.updateCommentIssueId(comment.id, issue.iid.toString());
