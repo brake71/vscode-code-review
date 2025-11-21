@@ -2,7 +2,7 @@
   "name": "vscode-code-review",
   "displayName": "Code Review",
   "description": "Create expert reviews / code reviews for a workspace that can be exported as a document for handing over to customers",
-  "version": "1.34.3",
+  "version": "1.34.4",
   "publisher": "d-koppenhagen",
   "author": "Danny Koppenhagen <mail@d-koppenhagen.de> (https://k9n.dev)",
   "homepage": "https://github.com/d-koppenhagen/vscode-code-review",
@@ -199,6 +199,30 @@
       {
         "command": "codeReview.setReviewFileSelectedCsv",
         "title": "Code Review: Set selected CSV as current code review file"
+      },
+      {
+        "command": "codeReview.exportToGitLab",
+        "title": "Code Review: Export to GitLab",
+        "icon": {
+          "light": "images/icons/gitlab-light.svg",
+          "dark": "images/icons/gitlab-dark.svg"
+        }
+      },
+      {
+        "command": "codeReview.exportCommentToGitLab",
+        "title": "Export to GitLab"
+      },
+      {
+        "command": "codeReview.syncWithGitLab",
+        "title": "Code Review: Sync with GitLab",
+        "icon": {
+          "light": "images/icons/sync-light.svg",
+          "dark": "images/icons/sync-dark.svg"
+        }
+      },
+      {
+        "command": "codeReview.configureGitLab",
+        "title": "Code Review: Configure GitLab Integration"
       }
     ],
     "menus": {
@@ -328,12 +352,27 @@
           "command": "codeReview.clearAllFilters",
           "when": "view == code-review.list && hasActiveFilters",
           "group": "navigation@7"
+        },
+        {
+          "command": "codeReview.exportToGitLab",
+          "when": "view == code-review.list",
+          "group": "navigation@8"
+        },
+        {
+          "command": "codeReview.syncWithGitLab",
+          "when": "view == code-review.list",
+          "group": "navigation@9"
         }
       ],
       "view/item/context": [
         {
           "command": "codeReview.deleteNote",
           "when": "view == code-review.list && viewItem == comment"
+        },
+        {
+          "command": "codeReview.exportCommentToGitLab",
+          "when": "view == code-review.list && viewItem == comment",
+          "group": "gitlab@1"
         }
       ]
     },
@@ -493,7 +532,7 @@
         "code-review.statusOptions": {
           "type": "array",
           "title": "Status Options",
-          "description": "List of statuses available for comment workflow",
+          "description": "List of statuses available for comment workflow. The 'Check' status is automatically set when a closed GitLab issue is synced, indicating the comment needs verification.",
           "items": {
             "type": "string"
           },
@@ -501,6 +540,7 @@
             "Open",
             "In Progress",
             "Resolved",
+            "Check",
             "Closed"
           ]
         },
@@ -522,6 +562,35 @@
           },
           "default": [
             "Closed"
+          ]
+        },
+        "code-review.gitlab.baseUrl": {
+          "type": "string",
+          "title": "GitLab Base URL",
+          "description": "The base URL of your GitLab instance (e.g., https://gitlab.com or https://gitlab-sonarqube-sti.phoenixit.ru)",
+          "default": ""
+        },
+        "code-review.gitlab.projectId": {
+          "type": "string",
+          "title": "GitLab Project ID",
+          "description": "The GitLab project ID (numeric ID or URL-encoded path like 'group/project')",
+          "default": ""
+        },
+        "code-review.gitlab.issueTemplatePath": {
+          "type": "string",
+          "title": "GitLab Issue Template Path",
+          "description": "Path to a custom Handlebars template for creating GitLab issues. If not specified, the built-in template will be used.",
+          "default": ""
+        },
+        "code-review.gitlab.defaultLabels": {
+          "type": "array",
+          "title": "Default GitLab Labels",
+          "description": "Default labels to apply to GitLab issues created from code review comments",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "code-review"
           ]
         }
       }

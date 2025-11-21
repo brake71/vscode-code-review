@@ -587,6 +587,11 @@
         transition: color var(--transition-standard);
       }
 
+      .status-check {
+        color: #ff8c00;
+        transition: color var(--transition-standard);
+      }
+
       .status-closed {
         color: #858585;
         transition: color var(--transition-standard);
@@ -608,6 +613,11 @@
         transition: color var(--transition-standard);
       }
 
+      body.vscode-light .status-check {
+        color: #d97700;
+        transition: color var(--transition-standard);
+      }
+
       body.vscode-light .status-closed {
         color: #6b6b6b;
         transition: color var(--transition-standard);
@@ -626,6 +636,11 @@
 
       body.vscode-dark .status-resolved {
         color: #89d185;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-dark .status-check {
+        color: #ffa500;
         transition: color var(--transition-standard);
       }
 
@@ -673,6 +688,11 @@
         transition: color var(--transition-standard);
       }
 
+      .status-select[data-status='check'] {
+        color: #ff8c00;
+        transition: color var(--transition-standard);
+      }
+
       .status-select[data-status='closed'] {
         color: #858585;
         transition: color var(--transition-standard);
@@ -691,6 +711,11 @@
 
       body.vscode-light .status-select[data-status='resolved'] {
         color: #5a9e57;
+        transition: color var(--transition-standard);
+      }
+
+      body.vscode-light .status-select[data-status='check'] {
+        color: #d97700;
         transition: color var(--transition-standard);
       }
 
@@ -715,9 +740,45 @@
         transition: color var(--transition-standard);
       }
 
+      body.vscode-dark .status-select[data-status='check'] {
+        color: #ffa500;
+        transition: color var(--transition-standard);
+      }
+
       body.vscode-dark .status-select[data-status='closed'] {
         color: #a0a0a0;
         transition: color var(--transition-standard);
+      }
+
+      /* GitLab Issue Link Styling - clickable label */
+      #issue-id-label.clickable {
+        cursor: pointer;
+        transition: color var(--transition-standard), transform var(--transition-standard);
+      }
+
+      #issue-id-label.clickable:hover {
+        color: var(--color-input-focus-border);
+        transform: translateX(2px);
+      }
+
+      #issue-id-label.clickable .codicon {
+        transition: transform var(--transition-standard);
+      }
+
+      #issue-id-label.clickable:hover .codicon {
+        transform: scale(1.1);
+      }
+
+      #issue-id-label.clickable::after {
+        content: '↗';
+        margin-left: var(--spacing-xs);
+        font-size: 12px;
+        opacity: 0.6;
+        transition: opacity var(--transition-standard);
+      }
+
+      #issue-id-label.clickable:hover::after {
+        opacity: 1;
       }
 
       /* Responsive Layout */
@@ -1007,7 +1068,7 @@
 
           <!-- Issue ID Field -->
           <div class="form-field">
-            <label for="issue_id">
+            <label for="issue_id" id="issue-id-label">
               <span class="codicon codicon-symbol-number"></span>
               Issue ID
             </label>
@@ -1168,6 +1229,35 @@
       // Set priority selector (radio button in new horizontal layout)
       if (event.data.comment.priority) {
         document.getElementById('prio-' + event.data.comment.priority).checked = true;
+      }
+
+      // Make Issue ID label clickable if GitLab URL is provided
+      const issueIdLabel = document.getElementById('issue-id-label');
+
+      if (event.data.gitlabIssueUrl && event.data.gitlabIssueUrl.trim() !== '') {
+        issueIdLabel.classList.add('clickable');
+        issueIdLabel.style.cursor = 'pointer';
+        issueIdLabel.title = 'Open issue in GitLab';
+
+        // Store URL for click handler
+        issueIdLabel.dataset.gitlabUrl = event.data.gitlabIssueUrl;
+
+        // Remove previous click handler if exists
+        const newLabel = issueIdLabel.cloneNode(true);
+        issueIdLabel.parentNode.replaceChild(newLabel, issueIdLabel);
+
+        // Add click handler
+        newLabel.addEventListener('click', function () {
+          vscode.postMessage({
+            command: 'openUrl',
+            url: this.dataset.gitlabUrl,
+          });
+        });
+      } else {
+        issueIdLabel.classList.remove('clickable');
+        issueIdLabel.style.cursor = 'default';
+        issueIdLabel.title = '';
+        delete issueIdLabel.dataset.gitlabUrl;
       }
     });
 

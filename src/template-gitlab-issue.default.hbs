@@ -1,0 +1,27 @@
+## Приоритет
+{{#if priority}}{{priorityName priority}}{{else}}Не указан{{/if}}
+
+## Категория
+{{#if category}}{{category}}{{else}}Не указана{{/if}}
+
+## Затронутый код - Файл:
+{{#if url}}[{{filename}}]({{url}}){{else}}{{filename}}{{/if}}
+- Строки:
+{{lines}}
+{{#if sha}}- SHA: {{sha}}{{/if}}
+
+## Комментарий
+{{comment}}
+
+{{#if additional}}
+  ## Дополнительная информация
+  {{additional}}
+{{/if}}
+
+{{#if code}}
+  ## Исходный код ```
+  {{{codeBlock code}}}
+  ```
+{{/if}}
+
+--- *Создано автоматически из code review*

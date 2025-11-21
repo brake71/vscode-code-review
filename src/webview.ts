@@ -1,4 +1,4 @@
-import { window, ViewColumn, ExtensionContext, workspace, Range, WebviewPanel, Uri, TextEditor } from 'vscode';
+import { window, ViewColumn, ExtensionContext, workspace, Range, WebviewPanel, Uri, TextEditor, env } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -7,6 +7,7 @@ import { createCommentFromObject, CsvEntry, CsvStructure } from './model';
 import { CommentListEntry } from './comment-list-entry';
 import { clearSelection, getSelectionRanges } from './utils/editor-utils';
 import { colorizedBackgroundDecoration } from './utils/decoration-utils';
+import { GitLabFactory } from './gitlab-factory';
 
 export class WebViewComponent {
   /** Store all configured categories */
@@ -17,6 +18,8 @@ export class WebViewComponent {
   private panel: WebviewPanel | null = null;
   /** Reference to the working editor during note edition */
   private editor: TextEditor | null = null;
+  /** GitLab factory for generating issue URLs */
+  private gitlabFactory: GitLabFactory | null = null;
 
   /**
    * Show the comment edition panel
@@ -38,6 +41,14 @@ export class WebViewComponent {
     this.highlightDecorationColor = workspace
       .getConfiguration()
       .get('code-review.codeSelectionBackgroundColor') as string;
+  }
+
+  /**
+   * Set the GitLab factory for generating issue URLs
+   * @param gitlabFactory The GitLab factory instance
+   */
+  setGitLabFactory(gitlabFactory: GitLabFactory) {
+    this.gitlabFactory = gitlabFactory;
   }
 
   /**
@@ -85,7 +96,17 @@ export class WebViewComponent {
     // panel.webview.html = fs.readFileSync(pathUri.fsPath, 'utf8');
     // const priorities = workspace.getConfiguration().get('code-review.priorities') as string[];
     data = CsvStructure.finalizeParse(data);
-    panel.webview.postMessage({ comment: { ...data } });
+
+    // Generate GitLab issue URL if issue_id exists
+    let gitlabIssueUrl = '';
+    if (data.issue_id && this.gitlabFactory) {
+      gitlabIssueUrl = this.gitlabFactory.getIssueUrl(data.issue_id);
+    }
+
+    panel.webview.postMessage({
+      comment: { ...data },
+      gitlabIssueUrl,
+    });
 
     // Handle messages from the webview
     panel.webview.onDidReceiveMessage(
@@ -137,6 +158,13 @@ export class WebViewComponent {
                   this.editComment(commentService, selections, data, onUpdate);
                 }
               });
+            break;
+
+          case 'openUrl':
+            if (message.url) {
+              const uri = Uri.parse(message.url);
+              await env.openExternal(uri);
+            }
             break;
         }
       },

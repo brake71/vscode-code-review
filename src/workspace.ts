@@ -12,6 +12,8 @@ import {
   TextEditor,
   DocumentFilter,
   languages,
+  ProgressLocation,
+  ConfigurationTarget,
 } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -28,6 +30,7 @@ import { ImportFactory, ConflictMode } from './import-factory';
 import { CodeRabbitImportFactory } from './coderabbit-import-factory';
 import { Decorations } from './utils/decoration-utils';
 import { CommentLensProvider } from './comment-lens-provider';
+import { GitLabFactory } from './gitlab-factory';
 
 const checkForCodeReviewFile = (fileName: string) => {
   commands.executeCommand('setContext', 'codeReview:displayCodeReviewExplorer', fs.existsSync(fileName));
@@ -40,6 +43,7 @@ export class WorkspaceContext {
   private exportFactory!: ExportFactory;
   private importFactory!: ImportFactory;
   private commentService!: ReviewCommentService;
+  private gitlabFactory!: GitLabFactory;
   private webview: WebViewComponent;
   private commentsProvider!: CommentsProvider;
   private commentLensProvider!: CommentLensProvider;
@@ -73,6 +77,10 @@ export class WorkspaceContext {
   private importFromJsonRegistration!: Disposable;
   private importFromCodeRabbitRegistration!: Disposable;
   private commentCodeLensProviderregistration!: Disposable;
+  private exportToGitLabRegistration!: Disposable;
+  private exportCommentToGitLabRegistration!: Disposable;
+  private syncWithGitLabRegistration!: Disposable;
+  private configureGitLabRegistration!: Disposable;
   private decorations: Decorations;
 
   constructor(private context: ExtensionContext, public workspaceRoot: string) {
@@ -87,6 +95,7 @@ export class WorkspaceContext {
     this.updateExportFactory();
     this.updateImportFactory();
     this.updateReviewCommentService();
+    this.updateGitLabFactory();
     this.updateCommentsProvider();
     this.setupFileWatcher();
     this.watchConfiguration();
@@ -228,6 +237,17 @@ export class WorkspaceContext {
 
   updateReviewCommentService() {
     this.commentService = new ReviewCommentService(this.generator.absoluteReviewFilePath, this.workspaceRoot);
+  }
+
+  updateGitLabFactory() {
+    this.gitlabFactory = new GitLabFactory(
+      this.context,
+      this.workspaceRoot,
+      this.commentService,
+      this.generator.absoluteReviewFilePath,
+    );
+    // Set GitLabFactory on webview to enable issue URL generation
+    this.webview.setGitLabFactory(this.gitlabFactory);
   }
 
   updateCommentsProvider() {
@@ -686,6 +706,167 @@ export class WorkspaceContext {
     });
 
     /**
+     * export all comments without issue_id to GitLab
+     */
+    this.exportToGitLabRegistration = commands.registerCommand('codeReview.exportToGitLab', async () => {
+      // Validate configuration before proceeding
+      const isValid = await this.gitlabFactory.validateConfiguration();
+      if (!isValid) {
+        const configure = await window.showErrorMessage(
+          'GitLab integration is not configured. Please configure base URL, project ID, and access token.',
+          'Configure',
+        );
+        if (configure) {
+          commands.executeCommand('codeReview.configureGitLab');
+        }
+        return;
+      }
+
+      // Show progress indicator
+      await window.withProgress(
+        {
+          location: ProgressLocation.Notification,
+          title: 'Exporting comments to GitLab',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Starting export...' });
+
+          const result = await this.gitlabFactory.exportToGitLab();
+
+          progress.report({ increment: 100, message: 'Export complete' });
+
+          // Refresh comment view to show updated issue_id values
+          if (result.exported > 0) {
+            await this.commentsProvider.refresh();
+            this.updateDecorations();
+          }
+        },
+      );
+    });
+
+    /**
+     * export a single comment to GitLab
+     */
+    this.exportCommentToGitLabRegistration = commands.registerCommand(
+      'codeReview.exportCommentToGitLab',
+      async (entry: CommentListEntry) => {
+        // Validate configuration before proceeding
+        const isValid = await this.gitlabFactory.validateConfiguration();
+        if (!isValid) {
+          const configure = await window.showErrorMessage(
+            'GitLab integration is not configured. Please configure base URL, project ID, and access token.',
+            'Configure',
+          );
+          if (configure) {
+            commands.executeCommand('codeReview.configureGitLab');
+          }
+          return;
+        }
+
+        // Check if comment already has an issue_id
+        if (entry.issue_id && entry.issue_id.trim() !== '') {
+          const issueUrl = this.gitlabFactory.getIssueUrl(entry.issue_id);
+          window
+            .showInformationMessage(`This comment is already linked to GitLab issue #${entry.issue_id}`, 'Open Issue')
+            .then((action) => {
+              if (action === 'Open Issue' && issueUrl) {
+                commands.executeCommand('vscode.open', Uri.parse(issueUrl));
+              }
+            });
+          return;
+        }
+
+        // Find the CSV entry from the data
+        const csvEntry = entry.data.lines.find((line: CsvEntry) => line.id === entry.id);
+        if (!csvEntry) {
+          window.showErrorMessage('Could not find comment data');
+          return;
+        }
+
+        // Show progress indicator
+        await window.withProgress(
+          {
+            location: ProgressLocation.Notification,
+            title: 'Exporting comment to GitLab',
+            cancellable: false,
+          },
+          async (progress) => {
+            progress.report({ increment: 0, message: 'Creating issue...' });
+
+            const result = await this.gitlabFactory.exportToGitLab([csvEntry]);
+
+            progress.report({ increment: 100, message: 'Export complete' });
+
+            // Refresh comment view to show updated issue_id
+            if (result.exported > 0) {
+              await this.commentsProvider.refresh();
+              this.updateDecorations();
+            }
+          },
+        );
+      },
+    );
+
+    /**
+     * sync comment statuses with GitLab issues
+     */
+    this.syncWithGitLabRegistration = commands.registerCommand('codeReview.syncWithGitLab', async () => {
+      // Validate configuration before proceeding
+      const isValid = await this.gitlabFactory.validateConfiguration();
+      if (!isValid) {
+        const configure = await window.showErrorMessage(
+          'GitLab integration is not configured. Please configure base URL, project ID, and access token.',
+          'Configure',
+        );
+        if (configure) {
+          commands.executeCommand('codeReview.configureGitLab');
+        }
+        return;
+      }
+
+      // Show progress indicator
+      await window.withProgress(
+        {
+          location: ProgressLocation.Notification,
+          title: 'Syncing with GitLab',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Fetching issue statuses...' });
+
+          const result = await this.gitlabFactory.syncStatuses();
+
+          progress.report({ increment: 100, message: 'Sync complete' });
+
+          // Update last sync time after successful sync
+          if (result.success) {
+            this.commentsProvider.updateLastSyncTime();
+          }
+
+          // Refresh comment view to show updated statuses and sync time
+          if (result.updated > 0 || result.success) {
+            await this.commentsProvider.refresh();
+            this.updateDecorations();
+          }
+        },
+      );
+    });
+
+    /**
+     * configure GitLab integration
+     */
+    this.configureGitLabRegistration = commands.registerCommand('codeReview.configureGitLab', async () => {
+      try {
+        const configManager = new (require('./utils/gitlab-config').GitLabConfigManager)(this.context);
+        await configManager.showConfigurationDialog();
+        window.showInformationMessage('GitLab integration configured successfully!');
+      } catch (error) {
+        window.showErrorMessage(`Failed to save configuration: ${error}`);
+      }
+    });
+
+    /**
      * support code lens for comment annotations in files
      */
     const ALL_FILES: DocumentFilter = { language: '*', scheme: 'file' };
@@ -727,6 +908,10 @@ export class WorkspaceContext {
       this.exportAsJsonRegistration,
       this.importFromJsonRegistration,
       this.importFromCodeRabbitRegistration,
+      this.exportToGitLabRegistration,
+      this.exportCommentToGitLabRegistration,
+      this.syncWithGitLabRegistration,
+      this.configureGitLabRegistration,
       this.commentCodeLensProviderregistration,
     );
   }
@@ -762,6 +947,10 @@ export class WorkspaceContext {
     this.exportAsJsonRegistration.dispose();
     this.importFromJsonRegistration.dispose();
     this.importFromCodeRabbitRegistration.dispose();
+    this.exportToGitLabRegistration.dispose();
+    this.exportCommentToGitLabRegistration.dispose();
+    this.syncWithGitLabRegistration.dispose();
+    this.configureGitLabRegistration.dispose();
     this.commentCodeLensProviderregistration.dispose();
     this.updateSubscriptions();
   }
