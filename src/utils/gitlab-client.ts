@@ -782,10 +782,18 @@ export class GitLabClient {
     for (const batch of batches) {
       const issues = await withRetry(async () => {
         const queryParams = batch.map((iid) => `iids[]=${iid}`).join('&');
-        return this.request<GitLabIssue[]>(
-          'GET',
-          `/api/v4/projects/${encodeURIComponent(this.projectId)}/issues?${queryParams}`,
+        // Добавляем state=all чтобы получить и открытые, и закрытые issues
+        // Добавляем per_page=100 чтобы получить все результаты (максимум 100 за раз)
+        const url = `/api/v4/projects/${encodeURIComponent(
+          this.projectId,
+        )}/issues?${queryParams}&state=all&per_page=100`;
+        console.log(`[GitLab API] Requesting batch of ${batch.length} issues: [${batch.join(', ')}]`);
+        console.log(`[GitLab API] GET ${this.baseUrl}${url}`);
+        const result = await this.request<GitLabIssue[]>('GET', url);
+        console.log(
+          `[GitLab API] Received ${result.length} issues with IIDs: [${result.map((i) => i.iid).join(', ')}]`,
         );
+        return result;
       });
       results.push(...issues);
     }

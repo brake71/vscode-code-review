@@ -223,6 +223,10 @@
       {
         "command": "codeReview.configureGitLab",
         "title": "Code Review: Configure GitLab Integration"
+      },
+      {
+        "command": "codeReview.diagnoseGitLabIssues",
+        "title": "Code Review: Diagnose GitLab Issues"
       }
     ],
     "menus": {

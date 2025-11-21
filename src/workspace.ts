@@ -81,6 +81,7 @@ export class WorkspaceContext {
   private exportCommentToGitLabRegistration!: Disposable;
   private syncWithGitLabRegistration!: Disposable;
   private configureGitLabRegistration!: Disposable;
+  private diagnoseGitLabIssuesRegistration!: Disposable;
   private decorations: Decorations;
 
   constructor(private context: ExtensionContext, public workspaceRoot: string) {
@@ -288,6 +289,10 @@ export class WorkspaceContext {
         }
 
         const filePath = path.join(this.workspaceRoot, fileSection.group);
+        console.log('[openSelection] Opening file:', filePath);
+        console.log('[openSelection] workspaceRoot:', this.workspaceRoot);
+        console.log('[openSelection] fileSection.group:', fileSection.group);
+
         workspace.openTextDocument(filePath).then(
           (doc) => {
             window.showTextDocument(doc, ViewColumn.One).then((textEditor) => {
@@ -295,6 +300,8 @@ export class WorkspaceContext {
                 const ranges: Range[] = rangesFromStringDefinition(csvRef.lines);
                 textEditor.revealRange(ranges[0]);
                 this.webview.editComment(this.commentService, ranges, csvRef, async () => {
+                  // Invalidate cache after editing comment
+                  this.exportFactory.invalidateCache();
                   await this.commentsProvider.refresh();
                   this.updateDecorations();
                 });
@@ -302,6 +309,8 @@ export class WorkspaceContext {
             });
           },
           (err) => {
+            console.error('[openSelection] Error opening file:', err);
+            console.error('[openSelection] Attempted path:', filePath);
             const msg = `Cannot not open file: '${filePath}': File does not exist.`;
             window.showErrorMessage(msg);
           },
@@ -738,6 +747,8 @@ export class WorkspaceContext {
 
           // Refresh comment view to show updated issue_id values
           if (result.exported > 0) {
+            // Invalidate cache to ensure fresh data is loaded
+            this.exportFactory.invalidateCache();
             await this.commentsProvider.refresh();
             this.updateDecorations();
           }
@@ -800,6 +811,8 @@ export class WorkspaceContext {
 
             // Refresh comment view to show updated issue_id
             if (result.exported > 0) {
+              // Invalidate cache to ensure fresh data is loaded
+              this.exportFactory.invalidateCache();
               await this.commentsProvider.refresh();
               this.updateDecorations();
             }
@@ -846,6 +859,8 @@ export class WorkspaceContext {
 
           // Refresh comment view to show updated statuses and sync time
           if (result.updated > 0 || result.success) {
+            // Invalidate cache to ensure fresh data is loaded
+            this.exportFactory.invalidateCache();
             await this.commentsProvider.refresh();
             this.updateDecorations();
           }
@@ -863,6 +878,105 @@ export class WorkspaceContext {
         window.showInformationMessage('GitLab integration configured successfully!');
       } catch (error) {
         window.showErrorMessage(`Failed to save configuration: ${error}`);
+      }
+    });
+
+    /**
+     * diagnose GitLab issues
+     */
+    this.diagnoseGitLabIssuesRegistration = commands.registerCommand('codeReview.diagnoseGitLabIssues', async () => {
+      try {
+        // Validate configuration before proceeding
+        const isValid = await this.gitlabFactory.validateConfiguration();
+        if (!isValid) {
+          const configure = await window.showErrorMessage(
+            'GitLab is not configured. Please configure GitLab integration first.',
+            'Configure',
+          );
+          if (configure === 'Configure') {
+            commands.executeCommand('codeReview.configureGitLab');
+          }
+          return;
+        }
+
+        // Show progress
+        await window.withProgress(
+          {
+            location: ProgressLocation.Notification,
+            title: 'Diagnosing GitLab issues...',
+            cancellable: false,
+          },
+          async () => {
+            const result = await this.gitlabFactory.diagnoseIssues();
+
+            // Show results
+            const message = [
+              `GitLab Issues Diagnostic Report:`,
+              ``,
+              `Total comments: ${result.totalComments}`,
+              `Comments with issue_id: ${result.commentsWithIssues}`,
+              `Issues found in GitLab: ${result.existingIssues}`,
+              `Issues NOT found: ${result.missingIssues}`,
+            ];
+
+            if (result.missingIssues > 0) {
+              message.push(``);
+              message.push(`Missing issue IIDs: ${result.missingIssueIds.join(', ')}`);
+              message.push(``);
+              message.push(`Testing each missing issue individually...`);
+
+              // Тестируем каждый отсутствующий issue отдельно
+              for (const iid of result.missingIssueIds.slice(0, 5)) {
+                // Ограничиваем до 5 для производительности
+                const testResult = await this.gitlabFactory.testSingleIssue(iid);
+                if (testResult.found) {
+                  message.push(`  ✓ Issue #${iid} EXISTS (found via single request)`);
+                } else {
+                  message.push(`  ✗ Issue #${iid} NOT FOUND (${testResult.error || 'does not exist'})`);
+                }
+              }
+
+              message.push(``);
+              message.push(`Possible reasons:`);
+              message.push(`1. Issues were deleted from GitLab`);
+              message.push(`2. Wrong Project ID in configuration`);
+              message.push(`3. Issues are in a different project`);
+              message.push(`4. Batch request issue (try single requests)`);
+            }
+
+            if (result.existingIssues > 0) {
+              message.push(``);
+              message.push(`Found issues:`);
+              result.issueDetails.forEach((issue) => {
+                message.push(`  #${issue.iid}: ${issue.title} [${issue.state}]`);
+              });
+            }
+
+            const fullMessage = message.join('\n');
+            console.log(fullMessage);
+
+            if (result.missingIssues > 0) {
+              window
+                .showWarningMessage(
+                  `Found ${result.missingIssues} missing issues. Check console for details.`,
+                  'Show Details',
+                )
+                .then((action) => {
+                  if (action === 'Show Details') {
+                    // Create output channel and show details
+                    const outputChannel = window.createOutputChannel('GitLab Diagnostic');
+                    outputChannel.appendLine(fullMessage);
+                    outputChannel.show();
+                  }
+                });
+            } else {
+              window.showInformationMessage(`All ${result.existingIssues} issues found in GitLab!`);
+            }
+          },
+        );
+      } catch (error) {
+        window.showErrorMessage(`Diagnostic failed: ${error}`);
+        console.error('GitLab diagnostic failed:', error);
       }
     });
 
@@ -912,6 +1026,7 @@ export class WorkspaceContext {
       this.exportCommentToGitLabRegistration,
       this.syncWithGitLabRegistration,
       this.configureGitLabRegistration,
+      this.diagnoseGitLabIssuesRegistration,
       this.commentCodeLensProviderregistration,
     );
   }
@@ -951,6 +1066,7 @@ export class WorkspaceContext {
     this.exportCommentToGitLabRegistration.dispose();
     this.syncWithGitLabRegistration.dispose();
     this.configureGitLabRegistration.dispose();
+    this.diagnoseGitLabIssuesRegistration.dispose();
     this.commentCodeLensProviderregistration.dispose();
     this.updateSubscriptions();
   }
