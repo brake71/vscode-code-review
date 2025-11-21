@@ -247,12 +247,12 @@ export class CodeRabbitDBConnector {
       throw new Error('No review data found in CodeRabbit storage');
     }
 
+    const crypto = require('crypto');
     let allReviews: CodeRabbitReview[] = [];
 
     // Read reviews from each key
     for (const key of reviewKeys) {
       // Calculate SHA256 hash of the key
-      const crypto = require('crypto');
       const hash = crypto.createHash('sha256').update(key).digest('hex');
       const filePath = path.join(storageDir, `${hash}.json`);
 
