@@ -51,6 +51,7 @@ export class GitLabFactory {
   private client: GitLabClient | null = null;
   private templateEngine: TemplateEngine;
   private configManager: GitLabConfigManager;
+  private outputChannel = window.createOutputChannel('GitLab Sync');
 
   constructor(
     private context: ExtensionContext,
@@ -60,6 +61,12 @@ export class GitLabFactory {
   ) {
     this.configManager = new GitLabConfigManager(context);
     this.templateEngine = new TemplateEngine(context, this.configManager);
+  }
+
+  private log(message: string, ...args: any[]) {
+    const fullMessage = args.length > 0 ? `${message} ${JSON.stringify(args)}` : message;
+    this.outputChannel.appendLine(fullMessage);
+    console.log(message, ...args);
   }
 
   /**
@@ -200,11 +207,39 @@ export class GitLabFactory {
       }
 
       // Группировка issue_id для батчинга (до 100 за раз)
-      const issueIds = commentsToSync.map((comment) => comment.issue_id);
+      // Удаляем решетку (#) если она есть в начале issue_id
+      const issueIds = commentsToSync.map((comment) => comment.issue_id.replace(/^#/, ''));
       const uniqueIssueIds = Array.from(new Set(issueIds));
+
+      const baseUrl = this.configManager.getBaseUrl();
+      const projectId = this.configManager.getProjectId();
+
+      // Логи пишутся в Output Channel, но окно не открывается автоматически
+      this.log(`[GitLab Sync] Configuration:`);
+      this.log(`[GitLab Sync]   Base URL: ${baseUrl}`);
+      this.log(`[GitLab Sync]   Project ID: ${projectId}`);
+      this.log(`[GitLab Sync] Syncing ${commentsToSync.length} comments with ${uniqueIssueIds.length} unique issues`);
+      this.log(`[GitLab Sync] Raw issue_ids from CSV:`, issueIds.slice(0, 10));
+      this.log(`[GitLab Sync] Unique issue IIDs:`, uniqueIssueIds.slice(0, 10));
+      this.log(
+        `[GitLab Sync] Sample comments:`,
+        commentsToSync.slice(0, 3).map((c) => ({
+          id: c.id,
+          title: c.title,
+          issue_id: c.issue_id,
+          issue_id_type: typeof c.issue_id,
+          issue_id_length: c.issue_id?.length,
+        })),
+      );
 
       // Запросы к GitLab API для получения статусов задач
       const issues = await this.client!.getIssues(uniqueIssueIds);
+
+      this.log(`[GitLab Sync] Found ${issues.length} issues in GitLab`);
+      this.log(
+        `[GitLab Sync] Found issue IIDs:`,
+        issues.map((i) => i.iid),
+      );
 
       // Создание карты issue_id -> issue для быстрого поиска
       const issueMap = new Map<string, GitLabIssue>();
@@ -212,18 +247,29 @@ export class GitLabFactory {
         issueMap.set(issue.iid.toString(), issue);
       });
 
+      // Определение отсутствующих issues
+      const missingIssueIds = uniqueIssueIds.filter((iid) => !issueMap.has(iid));
+      if (missingIssueIds.length > 0) {
+        this.log(`[GitLab Sync] ${missingIssueIds.length} issues not found in GitLab:`, missingIssueIds);
+        this.log(
+          `[GitLab Sync] This may indicate: 1) Issues were deleted, 2) Wrong Project ID, 3) Issues in different project`,
+        );
+      }
+
       // Обновление статуса на "Check" для закрытых задач
       for (const comment of commentsToSync) {
         try {
-          const issue = issueMap.get(comment.issue_id);
+          // Удаляем решетку (#) из issue_id перед поиском в Map
+          const cleanIssueId = comment.issue_id.replace(/^#/, '');
+          const issue = issueMap.get(cleanIssueId);
 
           if (!issue) {
-            // Задача не найдена (404)
-            console.warn(`Issue #${comment.issue_id} not found for comment ${comment.id}`);
+            // Задача не найдена - это может быть нормально (удалена, другой проект и т.д.)
+            this.log(`[GitLab Sync] Issue #${cleanIssueId} not found for comment ${comment.id} (${comment.title})`);
             result.errors.push({
               commentId: comment.id,
               issueId: comment.issue_id,
-              error: 'Issue not found',
+              error: 'Issue not found in GitLab (may be deleted or in different project)',
             });
             continue;
           }
@@ -252,12 +298,20 @@ export class GitLabFactory {
         window.showInformationMessage(
           `Successfully synced ${result.updated} comment(s) with GitLab. ${result.checked} marked as "Check".`,
         );
-      } else {
+      } else if (result.errors.length === 0) {
         window.showInformationMessage('All comments are already up to date');
       }
 
       if (result.errors.length > 0) {
-        window.showWarningMessage(`Failed to sync ${result.errors.length} comment(s). Check output for details.`);
+        const notFoundCount = result.errors.filter((e) => e.error.includes('not found')).length;
+        if (notFoundCount === result.errors.length) {
+          // Все ошибки - это "not found"
+          window.showWarningMessage(
+            `${notFoundCount} issue(s) not found in GitLab. They may have been deleted or are in a different project. Check console for details.`,
+          );
+        } else {
+          window.showWarningMessage(`Failed to sync ${result.errors.length} comment(s). Check console for details.`);
+        }
       }
     } catch (error) {
       result.success = false;
@@ -301,6 +355,106 @@ export class GitLabFactory {
   async validateConfiguration(): Promise<boolean> {
     const validation = await this.configManager.validateConfiguration();
     return validation.valid;
+  }
+
+  /**
+   * Тестирует получение конкретного issue по IID
+   * @param iid IID issue для тестирования
+   * @returns Promise с результатом теста
+   */
+  async testSingleIssue(iid: string): Promise<{
+    found: boolean;
+    issue?: any;
+    error?: string;
+  }> {
+    try {
+      // Инициализация клиента
+      if (!(await this.initializeClient())) {
+        throw new Error('GitLab is not configured properly');
+      }
+
+      // Удаляем решетку (#) если она есть
+      const cleanIid = iid.replace(/^#/, '');
+      console.log(`[GitLab Test] Testing single issue #${cleanIid} (original: ${iid})`);
+      const issue = await this.client!.getIssue(cleanIid);
+
+      if (issue) {
+        console.log(`[GitLab Test] Issue found: #${issue.iid} - ${issue.title} [${issue.state}]`);
+        return { found: true, issue };
+      } else {
+        console.log(`[GitLab Test] Issue #${iid} not found (returned null)`);
+        return { found: false };
+      }
+    } catch (error) {
+      console.error(`[GitLab Test] Error testing issue #${iid}:`, error);
+      return { found: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
+   * Диагностирует проблемы с issue_id в комментариях
+   * Проверяет, какие issues существуют в GitLab, а какие нет
+   * @returns Promise с результатом диагностики
+   */
+  async diagnoseIssues(): Promise<{
+    totalComments: number;
+    commentsWithIssues: number;
+    existingIssues: number;
+    missingIssues: number;
+    missingIssueIds: string[];
+    issueDetails: Array<{ iid: string; title: string; state: string; web_url: string }>;
+  }> {
+    try {
+      // Инициализация клиента
+      if (!(await this.initializeClient())) {
+        throw new Error('GitLab is not configured properly');
+      }
+
+      // Чтение всех комментариев
+      const allComments = await this.readCommentsFromCsv();
+      const commentsWithIssues = allComments.filter((c) => c.issue_id && c.issue_id.trim() !== '');
+
+      if (commentsWithIssues.length === 0) {
+        return {
+          totalComments: allComments.length,
+          commentsWithIssues: 0,
+          existingIssues: 0,
+          missingIssues: 0,
+          missingIssueIds: [],
+          issueDetails: [],
+        };
+      }
+
+      // Получение уникальных issue_id
+      // Удаляем решетку (#) если она есть в начале issue_id
+      const uniqueIssueIds = Array.from(new Set(commentsWithIssues.map((c) => c.issue_id.replace(/^#/, ''))));
+
+      // Запрос к GitLab
+      const issues = await this.client!.getIssues(uniqueIssueIds);
+
+      // Создание карты найденных issues
+      const foundIssueIds = new Set(issues.map((i) => i.iid.toString()));
+      const missingIssueIds = uniqueIssueIds.filter((iid) => !foundIssueIds.has(iid));
+
+      // Формирование деталей найденных issues
+      const issueDetails = issues.map((issue) => ({
+        iid: issue.iid.toString(),
+        title: issue.title,
+        state: issue.state,
+        web_url: issue.web_url,
+      }));
+
+      return {
+        totalComments: allComments.length,
+        commentsWithIssues: commentsWithIssues.length,
+        existingIssues: issues.length,
+        missingIssues: missingIssueIds.length,
+        missingIssueIds,
+        issueDetails,
+      };
+    } catch (error) {
+      throw new Error(`Failed to diagnose issues: ${error}`);
+    }
   }
 
   /**

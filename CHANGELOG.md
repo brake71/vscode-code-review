@@ -7,6 +7,17 @@ All notable changes to this project will be documented in this file. See [standa
 ### Features
 
 * **gitlab:** Automatic label generation from priority and category - GitLab issues now automatically receive labels based on comment priority (`minor`, `major`, `critical`) and category values, in addition to configured default labels
+* **gitlab:** Add diagnostic command for troubleshooting sync issues - New `Code Review: Diagnose GitLab Issues` command helps identify missing issues and configuration problems
+
+### Improvements
+
+* **gitlab:** Enhanced sync error reporting - Detailed logging shows which issues were requested, found, and missing during synchronization
+* **gitlab:** Better error messages for missing issues - Sync errors now include comment titles and suggest possible causes (deleted issues, wrong project ID, etc.)
+* **gitlab:** Improved user feedback - Differentiate between "not found" errors and other sync failures with specific guidance
+
+### Documentation
+
+* **gitlab:** Add comprehensive sync troubleshooting guide in English and Russian - Detailed documentation for resolving "Issue not found" errors
 
 ### [1.33.1](https://github.com/d-koppenhagen/vscode-code-review/compare/v1.33.0...v1.33.1) (2022-12-23)
 
