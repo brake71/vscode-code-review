@@ -124,11 +124,14 @@ export class GitLabFactory {
           // Рендеринг описания задачи из шаблона
           const description = this.templateEngine.renderIssueDescription(comment);
 
+          // Формирование меток из приоритета и категории
+          const labels = this.buildLabelsFromComment(comment, defaultLabels);
+
           // Создание задачи в GitLab
           const issue = await this.client!.createIssue({
             title: comment.title,
             description: description,
-            labels: defaultLabels,
+            labels: labels,
           });
 
           // Обновление CSV с полученным issue_id
@@ -272,9 +275,9 @@ export class GitLabFactory {
    */
   getIssueUrl(issueId: string): string {
     const baseUrl = this.configManager.getBaseUrl();
-    const projectId = this.configManager.getProjectId();
+    const projectPath = this.configManager.getProjectPath();
 
-    if (!baseUrl || !projectId || !issueId) {
+    if (!baseUrl || !projectPath || !issueId) {
       return '';
     }
 
@@ -283,14 +286,12 @@ export class GitLabFactory {
     // Удаление завершающего слэша
     cleanBaseUrl = cleanBaseUrl.replace(/\/$/, '');
 
-    // Проверка, является ли projectId числовым ID
-    if (/^\d+$/.test(projectId)) {
-      // Для числового ID используем формат /projects/<id>/-/issues/<issueId>
-      return `${cleanBaseUrl}/projects/${projectId}/-/issues/${issueId}`;
-    } else {
-      // Для пути (namespace/project) используем формат /<projectId>/-/issues/<issueId>
-      return `${cleanBaseUrl}/${projectId}/-/issues/${issueId}`;
-    }
+    // Удаление # из issueId если присутствует
+    const cleanIssueId = issueId.replace(/^#/, '');
+
+    // Используем формат /<projectPath>/-/issues/<issueId>
+    // projectPath должен быть в формате namespace/project (например, limto_rss_centr/erp_yx)
+    return `${cleanBaseUrl}/${projectPath}/-/issues/${cleanIssueId}`;
   }
 
   /**
@@ -403,5 +404,49 @@ export class GitLabFactory {
           }
         });
     });
+  }
+
+  /**
+   * Формирует массив меток из приоритета и категории комментария
+   * @param comment Комментарий
+   * @param defaultLabels Метки по умолчанию из конфигурации
+   * @returns Массив меток для задачи GitLab
+   */
+  private buildLabelsFromComment(comment: CsvEntry, defaultLabels: string[]): string[] {
+    const labels: string[] = [...defaultLabels];
+
+    // Добавление метки приоритета
+    if (comment.priority !== undefined && comment.priority !== null) {
+      const priorityLabel = this.getPriorityLabel(comment.priority);
+      if (priorityLabel) {
+        labels.push(priorityLabel);
+      }
+    }
+
+    // Добавление метки категории (нормализация: нижний регистр, пробелы → дефисы)
+    if (comment.category && comment.category.trim() !== '') {
+      const normalizedCategory = comment.category.trim().toLowerCase().replace(/\s+/g, '-');
+      labels.push(normalizedCategory);
+    }
+
+    return labels;
+  }
+
+  /**
+   * Получает метку приоритета на основе числового значения
+   * @param priority Числовое значение приоритета (0-3)
+   * @returns Метка приоритета или null
+   */
+  private getPriorityLabel(priority: number): string | null {
+    switch (priority) {
+      case 1:
+        return 'minor';
+      case 2:
+        return 'major';
+      case 3:
+        return 'critical';
+      default:
+        return null; // Для priority = 0 (не указан) метку не добавляем
+    }
   }
 }

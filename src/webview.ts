@@ -1,4 +1,4 @@
-import { window, ViewColumn, ExtensionContext, workspace, Range, WebviewPanel, Uri, TextEditor } from 'vscode';
+import { window, ViewColumn, ExtensionContext, workspace, Range, WebviewPanel, Uri, TextEditor, env } from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -158,6 +158,13 @@ export class WebViewComponent {
                   this.editComment(commentService, selections, data, onUpdate);
                 }
               });
+            break;
+
+          case 'openUrl':
+            if (message.url) {
+              const uri = Uri.parse(message.url);
+              await env.openExternal(uri);
+            }
             break;
         }
       },

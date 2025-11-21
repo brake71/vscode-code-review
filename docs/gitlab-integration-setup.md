@@ -137,6 +137,30 @@ You can configure default labels that will be automatically added to all created
 }
 ```
 
+#### Automatic Label Generation
+
+In addition to the default labels you configure, the extension automatically adds labels based on:
+
+1. **Priority Labels** (based on comment priority):
+   - Priority 1 (Low) → `minor`
+   - Priority 2 (Medium) → `major`
+   - Priority 3 (High) → `critical`
+   - Priority 0 (Not set) → no label added
+
+2. **Category Labels** (based on comment category):
+   - The category value is normalized: converted to lowercase and spaces replaced with hyphens
+   - Examples: `Nitpick` → `nitpick`, `Potential Issue` → `potential-issue`, `Refactor Suggestion` → `refactor-suggestion`
+
+**Example**: A comment with priority 3 and category "security" will get these labels:
+```
+["code-review", "bug", "urgent", "critical", "security"]
+```
+
+This allows you to:
+- Filter issues by priority in GitLab
+- Group issues by category
+- Create automated workflows based on labels
+
 ### Custom Issue Template
 
 Create a custom Handlebars template for issue descriptions:

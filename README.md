@@ -741,11 +741,19 @@ Or using project path:
 
 Default labels to automatically apply to all created GitLab issues.
 
+In addition to these default labels, the extension automatically adds:
+- **Priority labels**: `minor` (priority 1), `major` (priority 2), `critical` (priority 3)
+- **Category labels**: The category value from the comment (e.g., `nitpick`, `potential-issue`, `refactor-suggestion`)
+
 ```json
 {
   "code-review.gitlab.defaultLabels": ["code-review", "bug", "needs-review"]
 }
 ```
+
+Example: A comment with priority 3 (high) and category "Security" will get labels: `["code-review", "bug", "needs-review", "critical", "security"]`
+
+**Note:** Category labels are normalized to lowercase with spaces replaced by hyphens (e.g., "Potential Issue" → "potential-issue")
 
 ### `code-review.gitlab.issueTemplatePath`
 

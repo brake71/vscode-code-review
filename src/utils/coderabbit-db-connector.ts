@@ -54,12 +54,16 @@ export interface CodeRabbitImportOptions {
 
 /**
  * Коннектор к базе данных CodeRabbit
+ * Поддерживает два формата хранения:
+ * 1. File-backed storage (v0.16.0+) - JSON файлы в workspace storage
+ * 2. SQLite storage (legacy) - state.vscdb
  */
 export class CodeRabbitDBConnector {
   constructor(private workspaceRoot: string) {}
 
   /**
    * Автоматический поиск workspace storage для текущего проекта
+   * Возвращает путь к директории workspace storage (не к конкретному файлу)
    */
   public async findWorkspacePath(): Promise<string> {
     // Determine the base config directory based on platform
@@ -180,6 +184,14 @@ export class CodeRabbitDBConnector {
         }
 
         if (folderPathNormalized === projectPathNormalized) {
+          // Check for new file-backed storage first (v0.16.0+)
+          const fileStorage = path.join(wsDir, 'coderabbit.coderabbit-vscode');
+          if (fs.existsSync(fileStorage) && fs.statSync(fileStorage).isDirectory()) {
+            // Return workspace directory for file-backed storage
+            return wsDir;
+          }
+
+          // Fallback to old SQLite storage
           const dbPath = path.join(wsDir, 'state.vscdb');
           const dbExists = fs.existsSync(dbPath);
 
@@ -188,7 +200,7 @@ export class CodeRabbitDBConnector {
             // Data validation will happen in extractReviews() with better error handling
             return dbPath;
           } else {
-            debugInfo.push(`\nFound matching workspace but database file does not exist at: ${dbPath}`);
+            debugInfo.push(`\nFound matching workspace but neither file storage nor database exists`);
           }
         }
       } catch (error) {
@@ -208,9 +220,101 @@ export class CodeRabbitDBConnector {
   }
 
   /**
-   * Извлечение обзоров из базы данных с фильтрацией
+   * Извлечение обзоров из file-backed storage (v0.16.0+)
    */
-  public async extractReviews(dbPath: string, options: CodeRabbitImportOptions = {}): Promise<CodeRabbitReview[]> {
+  private extractReviewsFromFileStorage(
+    workspaceDir: string,
+    options: CodeRabbitImportOptions = {},
+  ): CodeRabbitReview[] {
+    const storageDir = path.join(workspaceDir, 'coderabbit.coderabbit-vscode');
+
+    if (!fs.existsSync(storageDir)) {
+      throw new Error(`CodeRabbit file storage not found at: ${storageDir}`);
+    }
+
+    // Read categories.json to find review keys
+    const categoriesPath = path.join(storageDir, 'categories.json');
+    if (!fs.existsSync(categoriesPath)) {
+      throw new Error('categories.json not found in CodeRabbit storage');
+    }
+
+    const categories = JSON.parse(fs.readFileSync(categoriesPath, 'utf-8'));
+
+    // Find all review keys
+    const reviewKeys = Object.keys(categories).filter((key) => key.endsWith('-reviews'));
+
+    if (reviewKeys.length === 0) {
+      throw new Error('No review data found in CodeRabbit storage');
+    }
+
+    let allReviews: CodeRabbitReview[] = [];
+
+    // Read reviews from each key
+    for (const key of reviewKeys) {
+      // Calculate SHA256 hash of the key
+      const crypto = require('crypto');
+      const hash = crypto.createHash('sha256').update(key).digest('hex');
+      const filePath = path.join(storageDir, `${hash}.json`);
+
+      if (!fs.existsSync(filePath)) {
+        continue;
+      }
+
+      try {
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+
+        if (!Array.isArray(data)) {
+          continue;
+        }
+
+        // Extract branch name from key
+        const keyWithoutReviews = key.replace('-reviews', '');
+        const normalizedWorkspaceRoot = this.workspaceRoot.toLowerCase().replace(/[\\/]/g, '\\');
+        const normalizedKey = keyWithoutReviews.toLowerCase().replace(/[\\/]/g, '\\');
+
+        let branchName = keyWithoutReviews;
+        if (normalizedKey.includes(normalizedWorkspaceRoot)) {
+          branchName = keyWithoutReviews.substring(normalizedWorkspaceRoot.length);
+          if (branchName.startsWith('-') || branchName.startsWith('\\') || branchName.startsWith('/')) {
+            branchName = branchName.substring(1);
+          }
+        }
+
+        // Add branch name to each review
+        const typedReviews = data.map((review) => ({
+          ...review,
+          branch: branchName,
+          // Normalize field names (completedAt -> endedAt for compatibility)
+          endedAt: review.endedAt || review.completedAt,
+        }));
+
+        allReviews = allReviews.concat(typedReviews);
+      } catch (error) {
+        console.error(`Error reading review file ${filePath}:`, error);
+      }
+    }
+
+    // Apply filters
+    allReviews = this.filterReviews(allReviews, options);
+
+    return allReviews;
+  }
+
+  /**
+   * Извлечение обзоров из базы данных с фильтрацией
+   * Поддерживает оба формата: file-backed storage (v0.16.0+) и SQLite (legacy)
+   */
+  public async extractReviews(storagePath: string, options: CodeRabbitImportOptions = {}): Promise<CodeRabbitReview[]> {
+    // Check if this is a directory (file-backed storage) or file (SQLite)
+    const stats = fs.statSync(storagePath);
+
+    if (stats.isDirectory()) {
+      // New file-backed storage
+      return this.extractReviewsFromFileStorage(storagePath, options);
+    }
+
+    // Old SQLite storage
+    const dbPath = storagePath;
     if (!fs.existsSync(dbPath)) {
       throw new Error(
         `CodeRabbit database file not found at: ${dbPath}. ` + 'The database may have been moved or deleted.',
@@ -459,6 +563,18 @@ export class CodeRabbitDBConnector {
       }
     }
 
+    // Log resolution status distribution for debugging
+    const resolutionCounts = new Map<string, number>();
+    for (const comment of allComments) {
+      const resolution = comment.resolution || 'none';
+      resolutionCounts.set(resolution, (resolutionCounts.get(resolution) || 0) + 1);
+    }
+
+    console.log('Resolution status distribution:');
+    for (const [resolution, count] of resolutionCounts.entries()) {
+      console.log(`  ${resolution}: ${count}`);
+    }
+
     // Фильтрация по статусу обработки
     return this.filterByResolution(allComments);
   }
@@ -471,9 +587,20 @@ export class CodeRabbitDBConnector {
     skippedResolved: number;
   } {
     let skippedResolved = 0;
+
+    // Known resolution statuses that indicate the comment has been resolved/handled
+    const resolvedStatuses = new Set([
+      'ignore', // User marked as ignore
+      'applySuggestion', // Suggestion was applied
+      'fixWithAI', // Fixed using AI
+      'resolved', // Explicitly marked as resolved
+      'accepted', // Accepted/acknowledged
+      'fixed', // Manually fixed
+    ]);
+
     const filtered = comments.filter((comment) => {
       const resolution = comment.resolution;
-      const shouldSkip = resolution === 'ignore' || resolution === 'applySuggestion' || resolution === 'fixWithAI';
+      const shouldSkip = resolution && resolvedStatuses.has(resolution);
       if (shouldSkip) {
         skippedResolved++;
       }

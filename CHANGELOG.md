@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [Unreleased]
+
+### Features
+
+* **gitlab:** Automatic label generation from priority and category - GitLab issues now automatically receive labels based on comment priority (`minor`, `major`, `critical`) and category values, in addition to configured default labels
+
 ### [1.33.1](https://github.com/d-koppenhagen/vscode-code-review/compare/v1.33.0...v1.33.1) (2022-12-23)
 
 

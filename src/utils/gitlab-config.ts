@@ -30,6 +30,26 @@ export class GitLabConfigManager {
   }
 
   /**
+   * Получает Project Path (namespace/project) извлекая из customUrl или используя projectId
+   * @returns Project Path или undefined
+   */
+  getProjectPath(): string | undefined {
+    // Пробуем извлечь из code-review.customUrl
+    const customUrl = workspace.getConfiguration().get('code-review.customUrl') as string;
+    if (customUrl) {
+      // Пример: https://gitlab-sonarqube-sti.phoenixit.ru/limto_rss_centr/erp_yx/-/blob/{sha}/{file}#L{start}-{end}
+      // Извлекаем limto_rss_centr/erp_yx
+      const match = customUrl.match(/\/([^\/]+\/[^\/]+)\/-\//);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+
+    // Если не удалось извлечь, возвращаем projectId как fallback
+    return this.getProjectId();
+  }
+
+  /**
    * Получает Personal Access Token из секретного хранилища VS Code
    * @returns Promise с токеном или undefined если не настроен
    */
