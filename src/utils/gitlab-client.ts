@@ -1020,8 +1020,8 @@ export class GitLabClient {
    * Получает участников проекта
    * API: GET /projects/:id/members
    *
-   * @param page Номер страницы (опционально)
-   * @param perPage Количество элементов на странице (опционально, максимум 100)
+   * @param page Номер страницы (опционально, должен быть >= 1, игнорируется если <= 0)
+   * @param perPage Количество элементов на странице (опционально, ограничено диапазоном 1-100, игнорируется если <= 0)
    * @returns Promise с массивом участников проекта
    */
   async getProjectMembers(page?: number, perPage?: number): Promise<PaginatedResult<GitLabUser>> {
@@ -1029,11 +1029,15 @@ export class GitLabClient {
       let queryParams = '';
       const params: string[] = [];
 
-      if (page) {
-        params.push(`page=${page}`);
+      // Validate and add page parameter (must be >= 1)
+      if (page !== undefined && page > 0) {
+        params.push(`page=${Math.floor(page)}`);
       }
-      if (perPage) {
-        params.push(`per_page=${Math.min(perPage, 100)}`);
+
+      // Validate and add perPage parameter (must be between 1 and 100)
+      if (perPage !== undefined && perPage > 0) {
+        const clampedPerPage = Math.max(1, Math.min(Math.floor(perPage), 100));
+        params.push(`per_page=${clampedPerPage}`);
       }
 
       if (params.length > 0) {
