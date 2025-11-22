@@ -55,6 +55,26 @@ After export, you'll see a notification with:
 
 Click "Show Details" to see error information.
 
+### Assigning Issues During Export
+
+When exporting comments to GitLab, the extension automatically assigns issues based on the **Assignee** field in your CSV:
+
+1. **Set Assignee in Comment**: When creating or editing a comment, fill in the "Assignee" field with a GitLab username or name
+2. **Export Comment**: The extension searches for the user in GitLab
+3. **Auto-Assignment**: If the user is found, the issue is automatically assigned to them
+4. **Graceful Fallback**: If the user is not found, the issue is created without an assignee (no error)
+
+**Example:**
+- CSV Assignee: `john.doe` or `John Doe`
+- GitLab Search: Finds user with username `john.doe` or name `John Doe`
+- Result: Issue is assigned to that user
+
+**Notes:**
+- The search is case-insensitive
+- Exact matches by username or name are preferred
+- If multiple users match, the first result is used
+- Non-existent assignees are logged but don't cause export failure
+
 ## Viewing GitLab Issues
 
 ### In Comment Explorer

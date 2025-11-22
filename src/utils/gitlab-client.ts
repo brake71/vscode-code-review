@@ -997,4 +997,57 @@ export class GitLabClient {
       }
     });
   }
+
+  /**
+   * Ищет пользователя по имени или username
+   * API: GET /users?search=query
+   *
+   * @param searchQuery Имя или username для поиска
+   * @returns Promise с массивом найденных пользователей
+   */
+  async searchUsers(searchQuery: string): Promise<GitLabUser[]> {
+    return withRetry(async () => {
+      if (!searchQuery || searchQuery.trim() === '') {
+        return [];
+      }
+
+      const encodedQuery = encodeURIComponent(searchQuery.trim());
+      return this.request<GitLabUser[]>('GET', `/api/v4/users?search=${encodedQuery}`);
+    });
+  }
+
+  /**
+   * Получает участников проекта
+   * API: GET /projects/:id/members
+   *
+   * @param page Номер страницы (опционально, должен быть >= 1, игнорируется если <= 0)
+   * @param perPage Количество элементов на странице (опционально, ограничено диапазоном 1-100, игнорируется если <= 0)
+   * @returns Promise с массивом участников проекта
+   */
+  async getProjectMembers(page?: number, perPage?: number): Promise<PaginatedResult<GitLabUser>> {
+    return withRetry(async () => {
+      let queryParams = '';
+      const params: string[] = [];
+
+      // Validate and add page parameter (must be >= 1)
+      if (page !== undefined && page > 0) {
+        params.push(`page=${Math.floor(page)}`);
+      }
+
+      // Validate and add perPage parameter (must be between 1 and 100)
+      if (perPage !== undefined && perPage > 0) {
+        const clampedPerPage = Math.max(1, Math.min(Math.floor(perPage), 100));
+        params.push(`per_page=${clampedPerPage}`);
+      }
+
+      if (params.length > 0) {
+        queryParams = '?' + params.join('&');
+      }
+
+      return this.requestWithPagination<GitLabUser>(
+        'GET',
+        `/api/v4/projects/${encodeURIComponent(this.projectId)}/members${queryParams}`,
+      );
+    });
+  }
 }

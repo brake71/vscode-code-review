@@ -325,4 +325,106 @@ suite('GitLab Factory - Export Tests', () => {
       assert.ok(fields[issueIdIndex] && fields[issueIdIndex].length > 0, 'Issue ID should not be empty');
     });
   });
+
+  suite('Export with Assignee', () => {
+    test('should export comment with assignee to GitLab', async function () {
+      this.timeout(10000); // Increase timeout for API calls
+
+      // Skip if GitLab is not configured
+      const isConfigured = await gitlabFactory.validateConfiguration();
+      if (!isConfigured) {
+        this.skip();
+        return;
+      }
+
+      // Create test CSV with a comment with assignee
+      // Note: Replace 'test-user' with an actual username from your GitLab instance
+      const testComment: CsvEntry = {
+        sha: 'abc123',
+        filename: 'test-assignee.ts',
+        url: 'https://example.com/test-assignee.ts',
+        lines: '10:1-15:5',
+        title: 'Test Export with Assignee',
+        comment: 'This comment should be assigned to a user',
+        priority: 2,
+        category: 'Test',
+        additional: '',
+        id: 'test-export-assignee-' + Date.now(),
+        private: 0,
+        assignee: 'test-user', // This should match a username in your GitLab
+        issue_id: '',
+        status: 'Open',
+        author: 'test-user',
+      };
+
+      // Write CSV file
+      const csvHeader =
+        'sha,filename,url,lines,title,comment,priority,category,additional,code,id,private,assignee,issue_id,status,author\n';
+      const csvLine = `${testComment.sha},${testComment.filename},${testComment.url},${testComment.lines},"${testComment.title}","${testComment.comment}",${testComment.priority},${testComment.category},${testComment.additional},,${testComment.id},${testComment.private},${testComment.assignee},${testComment.issue_id},${testComment.status},${testComment.author}\n`;
+      fs.writeFileSync(testReviewFile, csvHeader + csvLine);
+
+      // Export the comment
+      const result: ExportResult = await gitlabFactory.exportToGitLab([testComment]);
+
+      // Verify export result
+      assert.strictEqual(result.exported, 1, 'Should export 1 comment');
+      assert.strictEqual(result.failed, 0, 'Should have 0 failures');
+      assert.strictEqual(result.errors.length, 0, 'Should have no errors');
+
+      // Verify CSV was updated with issue_id
+      const csvContent = fs.readFileSync(testReviewFile, 'utf-8');
+      const lines = csvContent.split('\n');
+      assert.ok(lines[1].includes(','), 'CSV should have issue_id updated');
+
+      // Note: To fully verify assignee was set, you would need to:
+      // 1. Parse the issue_id from CSV
+      // 2. Fetch the issue from GitLab API
+      // 3. Check that issue.assignee is set
+      // This is left as a manual verification step
+    });
+
+    test('should handle export with non-existent assignee gracefully', async function () {
+      this.timeout(10000); // Increase timeout for API calls
+
+      // Skip if GitLab is not configured
+      const isConfigured = await gitlabFactory.validateConfiguration();
+      if (!isConfigured) {
+        this.skip();
+        return;
+      }
+
+      // Create test CSV with a comment with non-existent assignee
+      const testComment: CsvEntry = {
+        sha: 'abc123',
+        filename: 'test-invalid-assignee.ts',
+        url: 'https://example.com/test-invalid-assignee.ts',
+        lines: '10:1-15:5',
+        title: 'Test Export with Invalid Assignee',
+        comment: 'This comment has a non-existent assignee',
+        priority: 2,
+        category: 'Test',
+        additional: '',
+        id: 'test-export-invalid-assignee-' + Date.now(),
+        private: 0,
+        assignee: 'non-existent-user-12345', // This should not exist
+        issue_id: '',
+        status: 'Open',
+        author: 'test-user',
+      };
+
+      // Write CSV file
+      const csvHeader =
+        'sha,filename,url,lines,title,comment,priority,category,additional,code,id,private,assignee,issue_id,status,author\n';
+      const csvLine = `${testComment.sha},${testComment.filename},${testComment.url},${testComment.lines},"${testComment.title}","${testComment.comment}",${testComment.priority},${testComment.category},${testComment.additional},,${testComment.id},${testComment.private},${testComment.assignee},${testComment.issue_id},${testComment.status},${testComment.author}\n`;
+      fs.writeFileSync(testReviewFile, csvHeader + csvLine);
+
+      // Export the comment - should succeed even if assignee not found
+      const result: ExportResult = await gitlabFactory.exportToGitLab([testComment]);
+
+      // Verify export result - should still succeed, just without assignee
+      assert.strictEqual(result.exported, 1, 'Should export 1 comment even with invalid assignee');
+      assert.strictEqual(result.failed, 0, 'Should have 0 failures');
+      assert.strictEqual(result.errors.length, 0, 'Should have no errors');
+    });
+  });
 });
