@@ -134,11 +134,21 @@ export class GitLabFactory {
           // Формирование меток из приоритета и категории
           const labels = this.buildLabelsFromComment(comment, defaultLabels);
 
+          // Поиск assignee по имени/username если указан
+          let assigneeId: number | undefined;
+          if (comment.assignee && comment.assignee.trim() !== '') {
+            assigneeId = await this.findAssigneeId(comment.assignee);
+            if (!assigneeId) {
+              this.log(`[GitLab Export] Assignee "${comment.assignee}" not found for comment ${comment.id}`);
+            }
+          }
+
           // Создание задачи в GitLab
           const issue = await this.client!.createIssue({
             title: comment.title,
             description: description,
             labels: labels,
+            assignee_id: assigneeId,
           });
 
           // Обновление CSV с полученным issue_id
@@ -601,6 +611,44 @@ export class GitLabFactory {
         return 'critical';
       default:
         return null; // Для priority = 0 (не указан) метку не добавляем
+    }
+  }
+
+  /**
+   * Ищет ID пользователя GitLab по имени или username
+   * @param assigneeName Имя или username для поиска
+   * @returns ID пользователя или undefined если не найден
+   */
+  private async findAssigneeId(assigneeName: string): Promise<number | undefined> {
+    try {
+      // Поиск пользователя по имени/username
+      const users = await this.client!.searchUsers(assigneeName);
+
+      if (users.length === 0) {
+        return undefined;
+      }
+
+      // Ищем точное совпадение по username или name
+      const exactMatch = users.find(
+        (user) =>
+          user.username.toLowerCase() === assigneeName.toLowerCase() ||
+          user.name.toLowerCase() === assigneeName.toLowerCase(),
+      );
+
+      if (exactMatch) {
+        this.log(`[GitLab Export] Found assignee: ${exactMatch.name} (@${exactMatch.username}) [ID: ${exactMatch.id}]`);
+        return exactMatch.id;
+      }
+
+      // Если точного совпадения нет, берем первого из результатов
+      const firstMatch = users[0];
+      this.log(
+        `[GitLab Export] Using first match for "${assigneeName}": ${firstMatch.name} (@${firstMatch.username}) [ID: ${firstMatch.id}]`,
+      );
+      return firstMatch.id;
+    } catch (error) {
+      this.log(`[GitLab Export] Error searching for assignee "${assigneeName}":`, error);
+      return undefined;
     }
   }
 }
