@@ -706,6 +706,7 @@ export class WorkspaceContext {
         this.workspaceRoot,
         this.exportFactory.absoluteFilePath,
         this.generator,
+        this.context.storageUri?.fsPath,
       );
       const result = await codeRabbitImportFactory.importFromCodeRabbit();
       if (result) {

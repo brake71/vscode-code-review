@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file. See [standa
 
 * **gitlab:** Automatic label generation from priority and category - GitLab issues now automatically receive labels based on comment priority (`minor`, `major`, `critical`) and category values, in addition to configured default labels
 * **gitlab:** Add diagnostic command for troubleshooting sync issues - New `Code Review: Diagnose GitLab Issues` command helps identify missing issues and configuration problems
+* **coderabbit:** Universal IDE support for CodeRabbit import - Now works with Cursor, VS Code, VS Code Insiders, Antigravity, VSCodium, and any other VS Code fork
 
 ### Improvements
 

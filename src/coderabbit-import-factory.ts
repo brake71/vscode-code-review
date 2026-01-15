@@ -11,7 +11,12 @@ import { normalizePathSeparators } from './utils/workspace-util';
  * Factory class for importing code review comments from CodeRabbit database
  */
 export class CodeRabbitImportFactory {
-  constructor(private workspaceRoot: string, private reviewFile: string, private generator: FileGenerator) {}
+  constructor(
+    private workspaceRoot: string,
+    private reviewFile: string,
+    private generator: FileGenerator,
+    private storageUri?: string,
+  ) {}
 
   /**
    * Import comments from CodeRabbit with interactive filters
@@ -68,7 +73,7 @@ export class CodeRabbitImportFactory {
       ProgressManager.log(`Review file: ${this.reviewFile}`);
 
       // Find workspace storage path
-      const connector = new CodeRabbitDBConnector(this.workspaceRoot);
+      const connector = new CodeRabbitDBConnector(this.workspaceRoot, this.storageUri);
       const dbPath = await connector.findWorkspacePath();
       ProgressManager.log(`Found database at: ${dbPath}`);
 

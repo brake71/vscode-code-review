@@ -53,20 +53,38 @@ export interface CodeRabbitImportOptions {
 }
 
 /**
+ * Известные форки VS Code и их имена папок в AppData
+ */
+const KNOWN_IDE_NAMES = ['Cursor', 'Code', 'Code - Insiders', 'Antigravity', 'VSCodium'];
+
+/**
  * Коннектор к базе данных CodeRabbit
  * Поддерживает два формата хранения:
  * 1. File-backed storage (v0.16.0+) - JSON файлы в workspace storage
  * 2. SQLite storage (legacy) - state.vscdb
  */
 export class CodeRabbitDBConnector {
-  constructor(private workspaceRoot: string) {}
+  constructor(private workspaceRoot: string, private workspaceStorageUri?: string) {}
 
   /**
    * Автоматический поиск workspace storage для текущего проекта
    * Возвращает путь к директории workspace storage (не к конкретному файлу)
    */
   public async findWorkspacePath(): Promise<string> {
-    // Determine the base config directory based on platform
+    // If workspaceStorageUri is provided (from context.storageUri), derive workspaceStorage path from it
+    // storageUri format: {APPDATA}/{IDE}/User/workspaceStorage/{hash}/{extension-id}
+    // We need to go up 2 levels to get workspaceStorage path
+    if (this.workspaceStorageUri) {
+      const workspaceStoragePath = path.resolve(this.workspaceStorageUri, '..', '..');
+      if (fs.existsSync(workspaceStoragePath)) {
+        const result = this.searchInWorkspaceStorage(workspaceStoragePath);
+        if (result) {
+          return result;
+        }
+      }
+    }
+
+    // Fallback: determine the base config directory based on platform and search known IDEs
     let baseConfigPath: string;
     const platform = process.platform;
     const home = process.env.HOME;
@@ -98,17 +116,31 @@ export class CodeRabbitDBConnector {
       );
     }
 
-    const workspaceStoragePath = path.join(baseConfigPath, 'Cursor', 'User', 'workspaceStorage');
+    // Try all known IDEs
+    for (const ideName of KNOWN_IDE_NAMES) {
+      const workspaceStoragePath = path.join(baseConfigPath, ideName, 'User', 'workspaceStorage');
 
-    if (!fs.existsSync(workspaceStoragePath)) {
-      throw new Error(
-        `CodeRabbit database not found. Cursor workspace storage does not exist at: ${workspaceStoragePath}. ` +
-          'Please ensure Cursor IDE is installed and CodeRabbit extension has been used in this workspace.',
-      );
+      if (fs.existsSync(workspaceStoragePath)) {
+        const result = this.searchInWorkspaceStorage(workspaceStoragePath);
+        if (result) {
+          return result;
+        }
+      }
     }
 
+    throw new Error(
+      `CodeRabbit database not found. Searched in workspace storage for: ${KNOWN_IDE_NAMES.join(', ')}. ` +
+        'Please ensure CodeRabbit extension has been used in this workspace with one of the supported IDEs.',
+    );
+  }
+
+  /**
+   * Поиск базы данных CodeRabbit в указанном workspaceStorage
+   * @param workspaceStoragePath Путь к директории workspaceStorage
+   * @returns Путь к найденной базе данных или null
+   */
+  private searchInWorkspaceStorage(workspaceStoragePath: string): string | null {
     // Нормализуем путь к проекту для сравнения
-    // Если workspaceRoot пустой или '.', используем process.cwd()
     const workspaceRootToUse = !this.workspaceRoot || this.workspaceRoot === '.' ? process.cwd() : this.workspaceRoot;
     const projectPathResolved = path.resolve(workspaceRootToUse);
     const projectPathNormalized = path
@@ -117,14 +149,14 @@ export class CodeRabbitDBConnector {
       .replace(/[\\/]+$/, '');
 
     // Ищем workspace по workspace.json
-    const directories = fs.readdirSync(workspaceStoragePath);
-
-    let checkedWorkspaces = 0;
-    let workspacesWithJson = 0;
-    const debugInfo: string[] = [];
+    let directories: string[];
+    try {
+      directories = fs.readdirSync(workspaceStoragePath);
+    } catch {
+      return null;
+    }
 
     for (const dir of directories) {
-      checkedWorkspaces++;
       const wsDir = path.join(workspaceStoragePath, dir);
 
       // Проверяем, что это директория
@@ -142,8 +174,6 @@ export class CodeRabbitDBConnector {
         continue;
       }
 
-      workspacesWithJson++;
-
       try {
         const workspaceJson = JSON.parse(fs.readFileSync(workspaceJsonPath, 'utf-8'));
         let folderPath = workspaceJson.folder;
@@ -152,19 +182,14 @@ export class CodeRabbitDBConnector {
           continue;
         }
 
-        const originalPath = folderPath;
-
         // Обрабатываем формат URI (file:///e%3A/...) или обычный путь
         if (folderPath.startsWith('file:///')) {
-          // Извлекаем путь из URI
           folderPath = folderPath.replace('file:///', '');
-          // Декодируем URL-кодирование
           try {
             folderPath = decodeURIComponent(folderPath);
           } catch {
             // Игнорируем ошибки декодирования
           }
-          // Нормализуем путь для текущей ОС
           folderPath = path.normalize(folderPath);
         }
 
@@ -174,49 +199,25 @@ export class CodeRabbitDBConnector {
           .toLowerCase()
           .replace(/[\\/]+$/, '');
 
-        // Собираем отладочную информацию для первых 3 workspace
-        if (workspacesWithJson <= 3) {
-          debugInfo.push(`\nWorkspace ${workspacesWithJson} (${dir}):`);
-          debugInfo.push(`  Original: ${originalPath}`);
-          debugInfo.push(`  Decoded: ${folderPath}`);
-          debugInfo.push(`  Normalized: ${folderPathNormalized}`);
-          debugInfo.push(`  Match: ${folderPathNormalized === projectPathNormalized}`);
-        }
-
         if (folderPathNormalized === projectPathNormalized) {
           // Check for new file-backed storage first (v0.16.0+)
           const fileStorage = path.join(wsDir, 'coderabbit.coderabbit-vscode');
           if (fs.existsSync(fileStorage) && fs.statSync(fileStorage).isDirectory()) {
-            // Return workspace directory for file-backed storage
             return wsDir;
           }
 
           // Fallback to old SQLite storage
           const dbPath = path.join(wsDir, 'state.vscdb');
-          const dbExists = fs.existsSync(dbPath);
-
-          if (dbExists) {
-            // Return the database path if it exists
-            // Data validation will happen in extractReviews() with better error handling
+          if (fs.existsSync(dbPath)) {
             return dbPath;
-          } else {
-            debugInfo.push(`\nFound matching workspace but neither file storage nor database exists`);
           }
         }
-      } catch (error) {
-        // Продолжаем поиск при ошибках чтения workspace.json
+      } catch {
         continue;
       }
     }
 
-    throw new Error(
-      'CodeRabbit database not found in workspace storage. ' +
-        'Please ensure CodeRabbit extension is installed in Cursor IDE and has performed at least one code review in this workspace. ' +
-        `\n\nSearched in: ${workspaceStoragePath}` +
-        `\nLooking for workspace: ${projectPathNormalized}` +
-        `\nChecked ${checkedWorkspaces} directories, found ${workspacesWithJson} with workspace.json` +
-        (debugInfo.length > 0 ? `\n\nDebug info:${debugInfo.join('\n')}` : ''),
-    );
+    return null;
   }
 
   /**
